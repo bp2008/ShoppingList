@@ -43,7 +43,7 @@ export default {
     <template v-if="!isLeft">
       <button
         v-if="selecting"
-        class="cell check"
+        class="cell check tap"
         type="button"
         :aria-pressed="selected"
         @click.stop="$emit('toggle')"
@@ -52,7 +52,7 @@ export default {
       </button>
       <span
         v-else-if="showGrip"
-        class="cell grip"
+        class="cell grip tap"
         @pointerdown.stop="$emit('grip-down', $event)"
       >
         <i /><i /><i />
@@ -65,10 +65,10 @@ export default {
 
     <!-- Left column: quantity then grip, so the grip lands against the centre gutter. -->
     <template v-if="isLeft">
-      <button v-if="qty > 1" class="qty" type="button" @click.stop="$emit('qty-tap')">
+      <button v-if="qty > 1" class="qty tap" type="button" @click.stop="$emit('qty-tap')">
         ×{{ qty }}
       </button>
-      <span v-if="showGrip" class="cell grip" @pointerdown.stop="$emit('grip-down', $event)">
+      <span v-if="showGrip" class="cell grip tap" @pointerdown.stop="$emit('grip-down', $event)">
         <i /><i /><i />
       </span>
     </template>
@@ -94,6 +94,20 @@ export default {
 
 .row.dragging {
   opacity: 0.32;
+}
+
+/*
+ * Hover only, no press state: a press on a row body is usually the start of a scroll, and
+ * flashing the row every time the user swipes the column would be noise. The grip and the
+ * quantity chip are the two things a press here is unambiguously aimed at, and they carry
+ * `.tap` themselves.
+ */
+:where(html[data-input='mouse']) .row:hover {
+  box-shadow: inset 0 0 0 999px var(--hover);
+}
+
+:where(html[data-input='mouse']) .row:hover .grip i {
+  background: var(--text3);
 }
 
 .text {
@@ -145,6 +159,12 @@ export default {
 
 .check {
   cursor: pointer;
+}
+
+/* Both live inside a row with its own hover wash, so their rings sit inside the row. */
+.check:focus-visible,
+.qty:focus-visible {
+  outline-offset: -2px;
 }
 
 .box {

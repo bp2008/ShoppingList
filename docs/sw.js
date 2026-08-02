@@ -23,7 +23,7 @@
 // Stamped by scripts/build-shell.mjs from a hash of the shell sources. Changing the
 // bootloader or this file produces a new value, which is what makes the browser install
 // an updated worker.
-const SHELL_VERSION = "b163b189c17e"
+const SHELL_VERSION = "6a8390c8aa18"
 const SHELL_CACHE = 'slp.shell.' + SHELL_VERSION
 
 // Everything is resolved against the worker's own directory, never a hardcoded path, so

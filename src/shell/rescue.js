@@ -54,6 +54,84 @@
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
   var MONO = 'ui-monospace, Menlo, Consolas, monospace'
 
+  var FOCUS = '#0b57d0'
+
+  /**
+   * Hover, press and focus feedback, in inline styles.
+   *
+   * The app does this with CSS utilities, which is not available here: this screen deletes
+   * every stylesheet in the document before it renders, precisely so that nothing can
+   * restyle it. Same three rules as the app, though:
+   *
+   *   - Hover is applied only for a mouse. Each listener checks `pointerType` itself,
+   *     which is simpler than the app's global tracking and works for the same reason: on
+   *     a touchscreen the browser leaves :hover applied to whatever was tapped last, and a
+   *     recovery screen where a button you tapped stays lit is a screen where you cannot
+   *     tell which action ran.
+   *   - Press feedback applies to both, because a finger has nothing else to go on.
+   *   - The focus ring asks for :focus-visible where supported and falls back to showing
+   *     it, so keyboard users are never left without one.
+   *
+   * Every listener is trivial and independent, in keeping with the rest of the file: one
+   * that fails cannot take an action button down with it.
+   */
+  function interactive(node, base, hover, press) {
+    var state = { hover: false, press: false, focus: false }
+
+    function paint() {
+      try {
+        node.style.background = state.press ? press : state.hover ? hover : base
+        node.style.outline = state.focus ? '2px solid ' + FOCUS : ''
+        node.style.outlineOffset = state.focus ? '2px' : ''
+      } catch (e) {}
+    }
+
+    function on(type, fn) {
+      try {
+        node.addEventListener(type, fn)
+      } catch (e) {}
+    }
+
+    on('pointerenter', function (e) {
+      if (e.pointerType && e.pointerType !== 'mouse') return
+      state.hover = true
+      paint()
+    })
+    on('pointerleave', function () {
+      state.hover = false
+      state.press = false
+      paint()
+    })
+    on('pointerdown', function () {
+      state.press = true
+      paint()
+    })
+    on('pointerup', function () {
+      state.press = false
+      paint()
+    })
+    on('pointercancel', function () {
+      state.press = false
+      paint()
+    })
+    on('focus', function () {
+      var visible = true
+      try {
+        visible = node.matches(':focus-visible')
+      } catch (e) {}
+      state.focus = visible
+      paint()
+    })
+    on('blur', function () {
+      state.focus = false
+      state.hover = false
+      state.press = false
+      paint()
+    })
+
+    return node
+  }
+
   /**
    * Remove everything that could interfere, rather than layering over it.
    *
@@ -125,6 +203,12 @@
       label,
     )
     btn.type = 'button'
+    interactive(
+      btn,
+      '#fff',
+      danger ? '#fceceb' : '#f1f1f1',
+      danger ? '#f7d9d6' : '#e3e3e3',
+    )
 
     var desc = el(
       'div',
@@ -463,6 +547,7 @@
             })
             area.value = json
             area.readOnly = true
+            interactive(area, '#fff', '#fff', '#fff')
 
             var existing = wrap.querySelector('textarea')
             if (existing) existing.remove()
@@ -478,14 +563,17 @@
                 'a',
                 {
                   display: 'inline-block',
-                  marginTop: '8px',
+                  margin: '8px 0 0 -6px',
+                  padding: '6px',
+                  borderRadius: '6px',
                   font: '600 13.5px ' + FONT,
-                  color: '#0b57d0',
+                  color: FOCUS,
                 },
                 'Save as a file',
               )
               a.href = URL.createObjectURL(blob)
               a.download = 'shopping-list-backup.json'
+              interactive(a, 'transparent', '#e8f0fe', '#d3e2fc')
               wrap.appendChild(a)
             } catch (e) {
               /* textarea above is the fallback */
@@ -540,6 +628,7 @@
       color: '#000',
     })
     confirmInput.type = 'text'
+    interactive(confirmInput, '#fff', '#fff', '#fff')
     confirmInput.placeholder = 'Type RESET to confirm'
     confirmInput.autocapitalize = 'characters'
     confirmInput.autocomplete = 'off'

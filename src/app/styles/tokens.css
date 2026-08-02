@@ -25,6 +25,17 @@
   --scrim: rgba(20, 22, 26, 0.4);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
 
+  /*
+   * Interaction washes. Deliberately translucent: they are painted OVER whatever the
+   * element's own background is, so one pair of values works on the bar, on a chip and
+   * on a card without any of them needing a second colour.
+   */
+  --hover: rgba(20, 22, 26, 0.06);
+  --press: rgba(20, 22, 26, 0.12);
+  /* For accent-filled surfaces, where a dark wash would read as dirt. */
+  --hover-inv: rgba(255, 255, 255, 0.16);
+  --press-inv: rgba(255, 255, 255, 0.28);
+
   --row-height: 44px;
 
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -50,6 +61,10 @@ body[data-theme='oled'] {
   --topbar: #000000;
   --scrim: rgba(0, 0, 0, 0.66);
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  /* Light on black, and stronger: a 6% wash is invisible against a true-black surface. */
+  --hover: rgba(255, 255, 255, 0.09);
+  --press: rgba(255, 255, 255, 0.17);
 }
 
 html,
@@ -71,8 +86,57 @@ button {
   color: inherit;
   background: transparent;
   border: 0;
-  outline: none;
   -webkit-appearance: none;
+}
+
+/*
+ * Interaction feedback.
+ *
+ * THREE STATES, THREE MECHANISMS, ON PURPOSE — this is a touchscreen app, and the naive
+ * version of this is worse than none:
+ *
+ *   hover   Gated on `html[data-input='mouse']`, maintained by ui/inputMode.js. A tap
+ *           leaves :hover applied to the tapped element on every touchscreen, so an
+ *           ungated hover rule means the last button you touched stays lit as though a
+ *           pointer were resting on it. `@media (hover: hover)` does not save you: a
+ *           touchscreen laptop claims hover support and still does this.
+ *   press   Ungated. It is the only feedback a finger gets before it lifts, and it is
+ *           correct for a mouse too.
+ *   focus   `:focus-visible`, which the browser already limits to keyboard focus, so it
+ *           never fires on a tap or a click.
+ *
+ * The wash is an inset shadow rather than a background so it composes with whatever the
+ * element already has -- transparent, --chip, --accent -- and follows its border radius
+ * with no per-component colour. Elements with a real box-shadow (the FAB) override this
+ * with a rule that lists both.
+ */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * The gate is wrapped in :where() so it contributes no specificity. Without that, the
+ * hover rule would outrank the press rule and a mouse press would show no press state.
+ */
+:where(html[data-input='mouse']) .tap:not(:disabled):hover {
+  box-shadow: inset 0 0 0 999px var(--hover);
+}
+
+.tap:not(:disabled):active {
+  box-shadow: inset 0 0 0 999px var(--press);
+}
+
+:where(html[data-input='mouse']) .tap-inv:not(:disabled):hover {
+  box-shadow: inset 0 0 0 999px var(--hover-inv);
+}
+
+.tap-inv:not(:disabled):active {
+  box-shadow: inset 0 0 0 999px var(--press-inv);
 }
 
 input[type='range'] {

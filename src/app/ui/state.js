@@ -1,11 +1,18 @@
 import { reactive } from 'vue'
 
 /**
- * Ephemeral UI state — deliberately NOT persisted.
+ * Ephemeral UI state — deliberately NOT persisted. Only `lists` and `settings` survive a
+ * relaunch, and those live in core/store.ts.
  *
- * The handoff draws this line explicitly: which screen you are on, what you typed in
- * search, which menu is open, and everything about an in-flight drag all reset on
- * relaunch. Only `lists` and `settings` survive, and those live in core/store.ts.
+ * MOST OF THIS IS A PROJECTION, NOT A SOURCE. Which screen you are on and which layer is
+ * open belong to the URL; `syncUi()` in ui/navigation.js is the only writer of those
+ * fields, and nothing else may set them directly. What remains genuinely owned here is the
+ * detail that would be noise in a URL: the search text, the checkbox selection, the
+ * in-flight drag, the toast.
+ *
+ * A reload therefore lands back on the screen and layer the URL names — that is the point
+ * of routing them — while the search text, the selection and any drag still reset. A cold
+ * launch has no hash and so still starts on the home screen.
  */
 export const ui = reactive({
   /** 'home' | 'list' */

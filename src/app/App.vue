@@ -1,7 +1,5 @@
 <script>
 import TopBar from './components/TopBar.vue'
-import HomeScreen from './components/HomeScreen.vue'
-import ListScreen from './components/ListScreen.vue'
 import Drawer from './components/Drawer.vue'
 import SettingsSheet from './components/SettingsSheet.vue'
 import Dialogs from './components/Dialogs.vue'
@@ -10,20 +8,39 @@ import Toast from './components/Toast.vue'
 import * as store from './core/store'
 import { listAsText } from './core/format'
 import { criticalSection } from './core/bootBridge'
-import { ui, showToast, closeSearch } from './ui/state'
+import { ui, showToast } from './ui/state'
 import { installTheme } from './ui/theme'
-import { installHistory, popLayer, pushLayer, reuseLayer } from './ui/history'
+import { closeLayer, goHome, openLayer, replaceLayer, replaceWithList } from './ui/navigation'
 
 /**
- * Root component: screen switching, overlays, and the drawer's action table.
+ * Drawer actions that swap the drawer for another layer, and the layer each one opens.
+ *
+ * They REPLACE the drawer's history entry instead of closing it and pushing a new one, so
+ * one Back returns to the screen rather than reopening the menu.
+ */
+const DRAWER_LAYERS = {
+  'new-list': { dialog: 'new-list' },
+  settings: { settings: null },
+  about: { dialog: 'about' },
+  data: { dialog: 'data' },
+  rename: { dialog: 'rename' },
+  'delete-list': { dialog: 'delete-list' },
+  'select-catalog': { select: null },
+}
+
+/**
+ * Root component: the top bar, the routed screen, and the overlay layers.
  *
  * CONTRACT WITH THE BOOTLOADER: the element carrying `data-app-topbar` is what the boot
  * health check measures. It must exist and have a non-zero offsetHeight once rendered, or
  * a working build is judged broken and rolled back. Do not remove the attribute.
+ *
+ * Overlays live here rather than in the routes because they are drawn OVER the screen:
+ * routing them would unmount the list underneath and lose its scroll position.
  */
 export default {
   name: 'App',
-  components: { TopBar, HomeScreen, ListScreen, Drawer, SettingsSheet, Dialogs, Toast },
+  components: { TopBar, Drawer, SettingsSheet, Dialogs, Toast },
   props: {
     initResult: { type: Object, required: true },
   },
@@ -46,13 +63,21 @@ export default {
   },
   mounted() {
     installTheme()
-    installHistory()
 
     // Row height is a token so every row reads it without prop drilling.
     this.$watch(
       () => store.state.settings.rowHeight,
       (px) => document.documentElement.style.setProperty('--row-height', `${px}px`),
       { immediate: true },
+    )
+
+    // The list in the URL can disappear underneath us -- deleted, undone, or replaced by
+    // an import. The route guard only covers arriving; this covers already being there.
+    this.$watch(
+      () => ui.view === 'list' && !this.list,
+      (orphaned) => {
+        if (orphaned) goHome()
+      },
     )
 
     // The narrow-viewport rule is about APP width, not viewport width.
@@ -77,53 +102,19 @@ export default {
       location.reload()
     },
 
-    openList(id) {
-      criticalSection('open-list', () => {
-        ui.listId = id
-        ui.view = 'list'
-        closeSearch()
-        pushLayer()
-      })
-    },
-
-    // Every close routes through history; the popstate handler clears the state. Doing
-    // both here is what lets in-app close and hardware Back disagree.
+    // Every close routes through the router; syncUi() does the closing. Doing both here
+    // is what lets in-app close and hardware Back disagree.
     back() {
-      popLayer()
+      closeLayer()
     },
 
     openMenu() {
-      criticalSection('open-menu', () => {
-        ui.drawerOpen = true
-        pushLayer()
-      })
-    },
-
-    /**
-     * @param reuse true when replacing a layer that is already open (the drawer), so the
-     *   history entry is inherited rather than pushed on top of a pending back().
-     */
-    openDialog(kind, arg = null, reuse = false) {
-      ui.dialogArg = arg
-      ui.dialog = kind
-      if (!reuse) pushLayer()
-    },
-
-    closeDialog() {
-      popLayer()
-    },
-
-    closeDrawer() {
-      popLayer()
-    },
-
-    closeSettings() {
-      popLayer()
+      criticalSection('open-menu', () => openLayer({ menu: null }))
     },
 
     deleteSelected() {
       store.deleteCatalogItems(ui.listId, [...ui.selected])
-      popLayer()
+      closeLayer()
     },
 
     copyAsText() {
@@ -140,51 +131,33 @@ export default {
     /**
      * The drawer emits intents; the mapping to behaviour lives here, in one table.
      *
-     * Menu items that OPEN something inherit the drawer's history entry instead of
-     * popping it and pushing a new one. popLayer() goes back asynchronously, so a
-     * pushState in the same tick would be torn down by the popstate that arrives after
-     * it — the new layer would flash open and immediately close.
+     * Three shapes: undo and redo leave the drawer standing, because they are the two
+     * things a user is likely to want twice in a row and reopening the menu between
+     * presses is the whole complaint; anything that opens a layer inherits the drawer's
+     * history entry; everything else closes the drawer and acts.
      */
     onDrawerAction(action) {
-      const id = ui.listId
-      const opensLayer = [
-        'new-list',
-        'settings',
-        'about',
-        'data',
-        'rename',
-        'delete-list',
-        'select-catalog',
-      ].includes(action)
-
-      if (opensLayer) {
-        ui.drawerOpen = false
-        reuseLayer()
-      } else {
-        this.closeDrawer()
+      if (action === 'undo') {
+        store.undo()
+        return
+      }
+      if (action === 'redo') {
+        store.redo()
+        return
       }
 
+      const layer = DRAWER_LAYERS[action]
+      if (layer) {
+        replaceLayer(layer)
+        return
+      }
+
+      const id = ui.listId
+      closeLayer()
+
       switch (action) {
-        case 'undo':
-          store.undo()
-          break
-        case 'redo':
-          store.redo()
-          break
         case 'apply-update':
           location.reload()
-          break
-        case 'new-list':
-          this.openDialog('new-list', null, true)
-          break
-        case 'settings':
-          ui.settingsOpen = true
-          break
-        case 'about':
-          this.openDialog('about', null, true)
-          break
-        case 'data':
-          this.openDialog('data', null, true)
           break
         case 'sort':
           store.sortLeftAZ(id)
@@ -192,18 +165,8 @@ export default {
         case 'toggle-others':
           store.toggleShowOthers(id)
           break
-        case 'select-catalog':
-          ui.selecting = true
-          ui.selected = []
-          break
-        case 'rename':
-          this.openDialog('rename', null, true)
-          break
         case 'copy-text':
           this.copyAsText()
-          break
-        case 'delete-list':
-          this.openDialog('delete-list', null, true)
           break
         default:
           break
@@ -213,16 +176,12 @@ export default {
     /**
      * Creating a list opens it, per the handoff.
      *
-     * The dialog's history layer is REUSED as the list screen's layer rather than popped
+     * The dialog's history entry is REUSED as the list screen's entry rather than closed
      * and re-pushed: one Back should return to the home screen, not reopen the dialog
      * that created the list.
      */
     onCreated(id) {
-      ui.dialog = null
-      ui.dialogArg = null
-      ui.listId = id
-      ui.view = 'list'
-      reuseLayer()
+      replaceWithList(id)
     },
   },
 }
@@ -242,7 +201,7 @@ export default {
           Your lists were saved by a newer version of Shopping List and have been left
           untouched. Update to open them.
         </p>
-        <button type="button" @click="reload">Check for update</button>
+        <button class="tap-inv" type="button" @click="reload">Check for update</button>
       </div>
     </template>
 
@@ -258,35 +217,20 @@ export default {
         @delete-selected="deleteSelected"
       />
 
-      <HomeScreen
-        v-if="ui.view === 'home'"
-        @open="openList"
-        @new-list="openDialog('new-list')"
-      />
-      <ListScreen
-        v-else-if="list"
-        :list="list"
-        @add-catalog="openDialog('add-catalog')"
-      />
+      <RouterView />
 
       <Drawer
         v-if="ui.drawerOpen"
         :view="ui.view"
         :list="list"
         :version="version"
-        @close="closeDrawer"
+        @close="back"
         @action="onDrawerAction"
       />
 
-      <SettingsSheet v-if="ui.settingsOpen" @close="closeSettings" />
+      <SettingsSheet v-if="ui.settingsOpen" @close="back" />
 
-      <Dialogs
-        v-if="ui.dialog"
-        :list="list"
-        :version="version"
-        @close="closeDialog"
-        @created="onCreated"
-      />
+      <Dialogs v-if="ui.dialog" :list="list" :version="version" @close="back" @created="onCreated" />
 
       <Toast />
     </template>

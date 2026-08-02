@@ -1,6 +1,6 @@
 <script>
 import { ui } from '../ui/state'
-import { pushLayer, popLayer } from '../ui/history'
+import { closeLayer, openLayer } from '../ui/navigation'
 
 /**
  * The top bar, in its three states: resting, search expanded, and catalog-delete mode.
@@ -22,18 +22,18 @@ export default {
     return { ui }
   },
   methods: {
+    // The field does not exist until the navigation lands and the re-render flushes, so
+    // the focus waits for the router rather than for the current tick.
     openSearch() {
-      ui.searchOpen = true
-      pushLayer()
-      this.$nextTick(() => this.$refs.input?.focus())
+      openLayer({ search: null }).then(() => this.$nextTick(() => this.$refs.input?.focus()))
     },
-    // Closing goes through history only; the popstate handler clears the state. Doing
-    // both here is what lets the two paths disagree.
+    // Closing goes through the router only; syncUi() clears the state. Doing both here is
+    // what lets the two paths disagree.
     dismissSearch() {
-      popLayer()
+      closeLayer()
     },
     leaveSelection() {
-      popLayer()
+      closeLayer()
     },
   },
 }
@@ -42,9 +42,16 @@ export default {
 <template>
   <!-- Catalog-delete mode: the whole bar becomes accent with white content. -->
   <header v-if="ui.selecting" class="bar selecting">
-    <button class="icon exit" type="button" aria-label="Cancel" @click="leaveSelection">×</button>
+    <button class="icon exit tap-inv" type="button" aria-label="Cancel" @click="leaveSelection">
+      ×
+    </button>
     <span class="count">{{ ui.selected.length }} selected</span>
-    <button class="delete" type="button" :disabled="!canDelete" @click="$emit('delete-selected')">
+    <button
+      class="delete tap-inv"
+      type="button"
+      :disabled="!canDelete"
+      @click="$emit('delete-selected')"
+    >
       Delete
     </button>
   </header>
@@ -52,7 +59,7 @@ export default {
   <header v-else class="bar">
     <button
       v-if="showBack && !ui.searchOpen"
-      class="icon back"
+      class="icon back tap"
       type="button"
       aria-label="Back"
       @click="$emit('back')"
@@ -72,7 +79,12 @@ export default {
         autocapitalize="off"
         spellcheck="false"
       />
-      <button class="icon clear" type="button" aria-label="Close search" @click="dismissSearch">
+      <button
+        class="icon clear tap"
+        type="button"
+        aria-label="Close search"
+        @click="dismissSearch"
+      >
         ×
       </button>
     </template>
@@ -82,12 +94,12 @@ export default {
         <span class="title">{{ title }}</span>
         <span v-if="version" class="version">{{ version }}</span>
       </div>
-      <button class="icon" type="button" aria-label="Search" @click="openSearch">
+      <button class="icon tap" type="button" aria-label="Search" @click="openSearch">
         <span class="search-icon"><i class="ring" /><i class="handle" /></span>
       </button>
     </template>
 
-    <button class="icon" type="button" aria-label="Menu" @click="$emit('menu')">
+    <button class="icon tap" type="button" aria-label="Menu" @click="$emit('menu')">
       <span class="hamburger"><i /><i /><i /></span>
     </button>
   </header>
@@ -120,8 +132,13 @@ export default {
   padding: 0 8px;
 }
 
+/*
+ * The line box has to clear the descenders. `overflow: hidden` is required for the
+ * ellipsis, and it clips to the line box, not the glyphs -- at the 1.15 this started
+ * with, the tails of p, g and y were sliced off.
+ */
 .title {
-  font: 600 17px/1.15 var(--font);
+  font: 600 17px/1.45 var(--font);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -129,7 +146,7 @@ export default {
 }
 
 .version {
-  font: 400 10.5px var(--mono);
+  font: 400 10.5px/1.3 var(--mono);
   color: var(--text3);
 }
 
@@ -142,6 +159,11 @@ export default {
   justify-content: center;
   border-radius: 7px;
   cursor: pointer;
+}
+
+/* Inset: the bar has 2px of padding, so an outset ring on the end button is clipped. */
+.icon:focus-visible {
+  outline-offset: -2px;
 }
 
 .back {
@@ -158,6 +180,7 @@ export default {
   padding: 0 8px;
   font: 400 16px var(--font);
   color: var(--text);
+  border-radius: 7px;
 }
 
 .search-input::-webkit-search-cancel-button {
@@ -212,6 +235,16 @@ export default {
   border-radius: 1px;
 }
 
+/* The icon strokes are the affordance, so they answer to hover as well as the wash. */
+html[data-input='mouse'] .icon:hover .hamburger i,
+html[data-input='mouse'] .icon:hover .handle {
+  background: var(--text);
+}
+
+html[data-input='mouse'] .icon:hover .ring {
+  border-color: var(--text);
+}
+
 /* --- catalog-delete mode ------------------------------------------------- */
 
 .selecting {
@@ -244,5 +277,11 @@ export default {
 
 .delete:disabled {
   opacity: 0.5;
+  cursor: default;
+}
+
+/* White content on an accent bar: the ring has to be white to be visible at all. */
+.selecting :focus-visible {
+  outline-color: #fff;
 }
 </style>

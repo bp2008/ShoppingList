@@ -46,12 +46,17 @@ export default {
     <aside class="sheet slp-pop">
       <header class="head">{{ title }}</header>
 
+      <!--
+        These two do not close the sheet (see the action table in App.vue): stepping back
+        through several actions is the common case, and each label names the next one, so
+        the buttons have to stay on screen to be read.
+      -->
       <div class="history">
-        <button class="step" type="button" :disabled="!undoLabel" @click="run('undo')">
+        <button class="step tap" type="button" :disabled="!undoLabel" @click="run('undo')">
           <span class="verb">Undo</span>
           <span class="desc">{{ undoLabel || 'Nothing to undo' }}</span>
         </button>
-        <button class="step" type="button" :disabled="!redoLabel" @click="run('redo')">
+        <button class="step tap" type="button" :disabled="!redoLabel" @click="run('redo')">
           <span class="verb">Redo</span>
           <span class="desc">{{ redoLabel || 'Nothing to redo' }}</span>
         </button>
@@ -59,32 +64,37 @@ export default {
 
       <nav class="menu">
         <!-- Only present once an update is fully staged on this device. -->
-        <button v-if="ui.updateReady" class="item accent" type="button" @click="run('apply-update')">
+        <button
+          v-if="ui.updateReady"
+          class="item accent tap"
+          type="button"
+          @click="run('apply-update')"
+        >
           Update ready — restart
         </button>
 
         <template v-if="view === 'home'">
-          <button class="item" type="button" @click="run('new-list')">New list</button>
+          <button class="item tap" type="button" @click="run('new-list')">New list</button>
           <hr />
-          <button class="item" type="button" @click="run('data')">Import / export data</button>
-          <button class="item" type="button" @click="run('settings')">Settings</button>
-          <button class="item" type="button" @click="run('about')">About</button>
+          <button class="item tap" type="button" @click="run('data')">Import / export data</button>
+          <button class="item tap" type="button" @click="run('settings')">Settings</button>
+          <button class="item tap" type="button" @click="run('about')">About</button>
         </template>
 
         <template v-else>
-          <button class="item" type="button" @click="run('sort')">Sort left column A–Z</button>
-          <button class="item toggle-row" type="button" @click="run('toggle-others')">
+          <button class="item tap" type="button" @click="run('sort')">Sort left column A–Z</button>
+          <button class="item toggle-row tap" type="button" @click="run('toggle-others')">
             <span>Show catalog items from other lists</span>
             <span class="toggle" :class="{ on: list && list.showOthers }"><i /></span>
           </button>
-          <button class="item" type="button" @click="run('select-catalog')">
+          <button class="item tap" type="button" @click="run('select-catalog')">
             Remove items from catalog…
           </button>
           <hr />
-          <button class="item" type="button" @click="run('rename')">Rename list</button>
-          <button class="item" type="button" @click="run('copy-text')">Copy list as text</button>
-          <button class="item" type="button" @click="run('data')">Import / export data</button>
-          <button class="item" type="button" @click="run('settings')">Settings</button>
+          <button class="item tap" type="button" @click="run('rename')">Rename list</button>
+          <button class="item tap" type="button" @click="run('copy-text')">Copy list as text</button>
+          <button class="item tap" type="button" @click="run('data')">Import / export data</button>
+          <button class="item tap" type="button" @click="run('settings')">Settings</button>
           <hr />
           <button class="item danger" type="button" @click="run('delete-list')">
             Delete this list
@@ -194,6 +204,15 @@ export default {
 .item.accent {
   color: var(--accent);
   font-weight: 600;
+}
+
+/* Full-bleed rows: an outset ring would be clipped by the sheet's edge. */
+.item:focus-visible {
+  outline-offset: -2px;
+}
+
+.step:focus-visible {
+  outline-offset: 1px;
 }
 
 hr {

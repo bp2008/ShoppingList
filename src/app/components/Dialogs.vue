@@ -2,6 +2,7 @@
 import * as store from '../core/store'
 import { clampQty } from '../core/types'
 import { ui, showToast } from '../ui/state'
+import { goHome } from '../ui/navigation'
 
 /**
  * Every modal, sharing one shell.
@@ -127,7 +128,11 @@ export default {
           break
         case 'delete-list':
           store.deleteList(id)
-          break
+          // Deliberately no 'close': the screen behind this dialog is the list that no
+          // longer exists. One navigation home replaces both, where closing first and
+          // then leaving would be two navigations racing over the same history entry.
+          goHome()
+          return
         case 'data': {
           let parsed
           try {
@@ -172,9 +177,9 @@ export default {
       </template>
 
       <div v-else-if="kind === 'quantity'" class="stepper">
-        <button type="button" aria-label="Less" @click="bump(-1)">−</button>
+        <button class="tap" type="button" aria-label="Less" @click="bump(-1)">−</button>
         <span class="count">{{ qty }}</span>
-        <button type="button" aria-label="More" @click="bump(1)">+</button>
+        <button class="tap" type="button" aria-label="More" @click="bump(1)">+</button>
       </div>
 
       <p v-else-if="kind === 'delete-list'" class="body">
@@ -191,19 +196,21 @@ export default {
       <div class="actions">
         <button
           v-if="kind === 'about'"
-          class="link"
+          class="link tap"
           type="button"
           @click="openTroubleshooting"
         >
           Troubleshooting…
         </button>
-        <button v-if="kind === 'data'" class="link" type="button" @click="copyJson">Copy</button>
+        <button v-if="kind === 'data'" class="link tap" type="button" @click="copyJson">
+          Copy
+        </button>
         <span class="spacer" />
-        <button v-if="kind !== 'about'" class="link" type="button" @click="$emit('close')">
+        <button v-if="kind !== 'about'" class="link tap" type="button" @click="$emit('close')">
           Cancel
         </button>
         <button
-          class="primary"
+          class="primary tap"
           :class="{ danger: kind === 'delete-list' }"
           type="button"
           @click="kind === 'about' ? $emit('close') : submit()"

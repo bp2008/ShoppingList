@@ -1,6 +1,6 @@
 {
   "name": "Shopping List",
-  "short_name": "Shopping",
+  "short_name": "Shopping List",
   "description": "Offline shopping list.",
   "start_url": "./",
   "scope": "./",

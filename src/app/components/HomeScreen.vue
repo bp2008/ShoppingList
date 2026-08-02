@@ -1,13 +1,15 @@
 <script>
+import Fab from './Fab.vue'
 import ListTile from './ListTile.vue'
 import { state } from '../core/store'
 import { filterLists, listsByRecency } from '../core/selectors'
+import { criticalSection } from '../core/bootBridge'
 import { ui } from '../ui/state'
+import { openLayer, openList } from '../ui/navigation'
 
 export default {
   name: 'HomeScreen',
-  components: { ListTile },
-  emits: ['open', 'new-list'],
+  components: { Fab, ListTile },
   data() {
     // Relative times are recomputed on a timer rather than per render, so "Just now"
     // becomes "2m ago" without the tile grid depending on Date.now() during rendering.
@@ -30,6 +32,16 @@ export default {
   beforeUnmount() {
     clearInterval(this.timer)
   },
+  methods: {
+    // Opening a list is on the short list of paths whose failure leaves the app unusable,
+    // so it escalates to the rescue screen rather than failing silently.
+    open(id) {
+      criticalSection('open-list', () => openList(id))
+    },
+    newList() {
+      openLayer({ dialog: 'new-list' })
+    },
+  },
 }
 </script>
 
@@ -42,11 +54,11 @@ export default {
         :key="list.id"
         :list="list"
         :now="now"
-        @click="$emit('open', list.id)"
+        @click="open(list.id)"
       />
     </div>
 
-    <button class="fab" type="button" aria-label="New list" @click="$emit('new-list')">+</button>
+    <Fab label="New list" @click="newList" />
   </div>
 </template>
 
@@ -72,19 +84,5 @@ export default {
   text-align: center;
   font: 400 13.5px/1.4 var(--font);
   color: var(--text3);
-}
-
-.fab {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  width: 52px;
-  height: 52px;
-  font: 300 30px/1 var(--font);
-  color: #fff;
-  background: var(--accent);
-  border-radius: 26px;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
-  cursor: pointer;
 }
 </style>

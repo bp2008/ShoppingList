@@ -1,6 +1,6 @@
 {
   "name": "shopping-list",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Offline-first shopping list PWA. Static hosting, atomic staged updates, rescue bootloader.",
@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "idb-keyval": "^6.3.0",
-    "vue": "^3.5.40"
+    "vue": "^3.5.40",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",

@@ -33,7 +33,7 @@ export default {
 <template>
   <div class="sheet slp-fade">
     <header class="bar">
-      <button class="back" type="button" aria-label="Back" @click="$emit('close')">‹</button>
+      <button class="back tap" type="button" aria-label="Back" @click="$emit('close')">‹</button>
       <span class="title">Settings</span>
     </header>
 
@@ -48,6 +48,7 @@ export default {
               { id: 'system', label: 'System' },
             ]"
             :key="opt.id"
+            class="tap"
             type="button"
             :class="{ on: state.settings.theme === opt.id }"
             @click="setTheme(opt.id)"
@@ -69,14 +70,14 @@ export default {
 
       <section class="card">
         <h2>Behaviour</h2>
-        <button class="toggle-row" type="button" @click="toggleGrips">
+        <button class="toggle-row tap" type="button" @click="toggleGrips">
           <span class="texts">
             <span class="label">Show drag grips</span>
             <span class="hint">Off, or on narrow screens: long-press a row to drag</span>
           </span>
           <span class="toggle" :class="{ on: state.settings.showGrips }"><i /></span>
         </button>
-        <button class="toggle-row" type="button" @click="toggleAskQty">
+        <button class="toggle-row tap" type="button" @click="toggleAskQty">
           <span class="texts">
             <span class="label">Ask quantity on duplicate drag</span>
             <span class="hint">Otherwise a repeat drag just increments</span>
@@ -173,6 +174,18 @@ h2 {
   border-color: var(--accent);
 }
 
+:where(html[data-input='mouse']) .segmented button:not(.on):hover {
+  border-color: var(--line);
+}
+
+/*
+ * The row is only the shape of the setting; the toggle is the control. Both react, so it
+ * is obvious that the whole row is the target and not just the switch.
+ */
+:where(html[data-input='mouse']) .toggle-row:hover .toggle:not(.on) {
+  background: var(--grip2);
+}
+
 .slider-head {
   display: flex;
   justify-content: space-between;
@@ -210,7 +223,12 @@ input[type='range'] {
   min-height: 46px;
   padding: 6px 0;
   text-align: left;
+  border-radius: 6px;
   cursor: pointer;
+}
+
+.toggle-row:focus-visible {
+  outline-offset: -1px;
 }
 
 .texts {

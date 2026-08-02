@@ -86,6 +86,19 @@
         border-radius: 8px;
         cursor: pointer;
       }
+      /* No JS gate here; the shell cannot depend on the app for anything. */
+      @media (hover: hover) {
+        .slp-boot-action:hover {
+          background: #1d4ed8;
+        }
+      }
+      .slp-boot-action:active {
+        background: #1a44be;
+      }
+      .slp-boot-action:focus-visible {
+        outline: 2px solid #2563eb;
+        outline-offset: 2px;
+      }
     </style>
 
     <!--

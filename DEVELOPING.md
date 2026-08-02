@@ -28,9 +28,10 @@ Technical documentation for the app described in [README.md](README.md).
   top-level `await`.
 - Nothing else. No Docker, no global tooling, no CI.
 
-Stack: **Vue 3 (Options API) + Vite**, no Babel, targeting `es2022` because the app is
-for modern smartphones only. TypeScript is used selectively — see
-[Language split](#language-split).
+Stack: **Vue 3 (Options API) + vue-router 4 + Vite**, no Babel, targeting `es2022` because
+the app is for modern smartphones only. TypeScript is used selectively — see
+[Language split](#language-split). Runtime dependencies are Vue, vue-router and
+`idb-keyval`, and that list is meant to stay short.
 
 ## Quick start
 
@@ -114,6 +115,57 @@ immutable. Its stability is a feature, and there is a test for it: see
 `.vue` files are not type-checked at all. `vue-tsc` cannot drive TypeScript 7 (the native
 compiler dropped the entry point it reaches for), and since components are deliberately
 plain JS there is nothing for it to check. `npm run check` runs plain `tsc`.
+
+### Routing
+
+Two screens are routes; every overlay is a query flag on whichever screen is showing.
+
+| URL | State |
+| --- | --- |
+| `#/` | Home |
+| `#/list/<id>` | That list |
+| `…?menu` | Drawer open |
+| `…?settings` | Settings sheet open |
+| `…?search` | Search expanded (the text itself is never in the URL) |
+| `…?select` | Catalog-delete mode (the selection itself is never in the URL) |
+| `…?dialog=<kind>` | That dialog; `quantity` also carries `cid` and `qty` |
+
+Overlays are query flags rather than nested routes because they are drawn *over* the
+screen — routing them would unmount the list underneath and lose its scroll position.
+They stack in the URL exactly as they stack on screen, so `?search&menu` closes back to
+`?search`.
+
+**Hash history, not path history.** The published site is static, is served from an
+arbitrary mount path, and its service worker deliberately knows nothing about app URLs.
+Path routing would need every deep link to fall back to `index.html` on the server, which
+GitHub Pages branch deployment cannot do. A hash never reaches a server, so `#/list/<id>`
+works identically at the Pages subpath, on a staging box, on localhost, and offline. The
+bootloader's `#rescue` hatch is unaffected — it matches before any app code loads, and only
+at the very start of the hash.
+
+**vue-router 4, not 5.** v5 is the file-based/typed-routes package: it needs a Vite plugin
+and peers on Pinia, for two routes that fit in a twenty-line table. v4 is runtime-only with
+a single dependency.
+
+### Interaction styling
+
+`.tap` / `.tap-inv` in `styles/tokens.css` give any element hover, press and focus
+feedback. The wash is an inset box-shadow so it composes with whatever background and
+radius the element already has.
+
+Hover is gated on `html[data-input='mouse']`, which `ui/inputMode.js` maintains from the
+last pointer event's `pointerType`. This is a touchscreen app: an ungated `:hover` leaves
+the last button you tapped lit as though a pointer were resting on it, and
+`@media (hover: hover)` does not save you because a touchscreen laptop reports hover
+support and still does it. Press feedback is deliberately *not* gated — it is the only
+feedback a finger gets before it lifts. Focus rings are `:focus-visible`, which the browser
+already limits to keyboard focus.
+
+The gate is written `:where(html[data-input='mouse'])` so it adds no specificity; without
+that, the hover rule outranks the press rule and a mouse press shows nothing.
+
+The rescue screen cannot use any of this — it deletes every stylesheet in the document
+before it renders — so `shell/rescue.js` carries a small inline-style equivalent.
 
 ## The update model
 
@@ -330,8 +382,8 @@ src/shell/            The bootloader layer. Near-frozen. Knows nothing about lis
   reset.html            Tier-3 escape hatch.
 
 src/app/
-  main.js               Loads data, mounts, then signals the bootloader.
-  App.vue               Screen switching, overlays, the drawer's action table.
+  main.js               Loads data, builds the router, mounts, signals the bootloader.
+  App.vue               Top bar, routed screen, overlays, the drawer's action table.
   core/                 TypeScript. Type-checked. Where the invariants live.
     types.ts              Data model + constants.
     store.ts              Reactive state and the commit() undo funnel.
@@ -343,8 +395,14 @@ src/app/
     dragController.ts     Pointer wiring and teardown.
     bootBridge.ts         The three bootloader globals.
   components/           Plain-JS Vue SFCs.
-  ui/                   Ephemeral state, theme, history/back-button.
-  styles/tokens.css     Design tokens. No component hardcodes a colour.
+  ui/                   Ephemeral state, theme, routing, input modality.
+    router.js             Route table. Hash history. Screens only.
+    navigation.js         Navigation intents + the URL → ui projection.
+    state.js              Ephemeral UI state. Not persisted.
+    theme.js              Theme application and the theme-color meta.
+    inputMode.js          Last input device, published as html[data-input].
+  styles/tokens.css     Design tokens + interaction utilities. No component
+                        hardcodes a colour.
 
 scripts/                Build, deploy, icons, static server, drills.
 docs/                   THE PUBLISHED SITE. Generated, but committed.
@@ -365,13 +423,23 @@ from `data()` is wrapped in a reactive Proxy, and `#private` fields are unreacha
 a Proxy — every method throws *"Cannot read private member"*. `DragController` is assigned
 in `mounted()` with `markRaw` for this reason.
 
-**`popstate` is the only place a UI layer is closed.** `popLayer()` asks the browser to go
-back and does *not* touch state. The obvious alternative — close the layer directly *and*
-call `history.back()`, suppressing the resulting `popstate` — desyncs as soon as two closes
-overlap, and the user gets thrown out of their list. Related: **never `popLayer()` and
-`pushLayer()` in the same tick.** `history.back()` is asynchronous, so the late `popstate`
-tears down the layer you just pushed. Use `reuseLayer()` to inherit the current entry
-instead (see the drawer's action table).
+**The URL owns the UI. Nothing opens or closes a layer by writing `ui` directly.** Screens
+are routes, overlays are query flags, and `syncUi()` in `ui/navigation.js` — the single
+`afterEach` subscriber — projects the route back onto `ui`. In-app buttons, hardware Back,
+Forward and Reload therefore all travel the identical path and cannot disagree about what
+is open. Writing `ui.drawerOpen = true` somewhere reintroduces exactly the class of bug
+this replaced: the earlier hand-rolled layer counter drifted from the real history stack,
+had no answer for Forward, and left a reload showing the home screen while the stack still
+claimed layers were open.
+
+**Never close and open a layer in the same tick.** `router.back()` is asynchronous, so the
+navigation that lands afterwards tears down whatever was pushed in between. Anything that
+swaps one layer for another — every drawer item that opens something — uses
+`replaceLayer()`, which is a single `replace()` and cannot race with itself.
+
+**Navigation is asynchronous.** The DOM for a layer does not exist when the call that
+opened it returns. Code that has to touch it (focusing the search field is the only case
+today) waits on the promise the navigation helpers return, then `$nextTick`.
 
 **Drag teardown must be unconditional.** One `AbortController` per drag; every listener
 takes `{ signal }`; teardown is idempotent and runs from `pointerup`, `pointercancel`,

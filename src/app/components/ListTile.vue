@@ -36,7 +36,7 @@ export default {
 </script>
 
 <template>
-  <button class="tile slp-fade" type="button">
+  <button class="tile tap slp-fade" type="button">
     <span class="spine" :style="{ background: spine }" />
     <span class="body">
       <span class="head">
@@ -57,11 +57,24 @@ export default {
   position: relative;
   display: flex;
   text-align: left;
+  /* The reset in tokens.css clears the button border but not its UA padding (1px 6px),
+     which is what held the spine off the tile's edge. The body carries the padding. */
+  padding: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
+}
+
+/* The border is the tile's edge, so hover moves it rather than adding a second one. */
+:where(html[data-input='mouse']) .tile:hover {
+  border-color: var(--accent);
+}
+
+/* Inset, because the grid clips at its padding and an outset ring would be cut off. */
+.tile:focus-visible {
+  outline-offset: -2px;
 }
 
 .spine {
