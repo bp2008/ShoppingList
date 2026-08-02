@@ -85,7 +85,7 @@ export default {
       spellcheck="false"
       autocapitalize="off"
       autocomplete="off"
-      placeholder="[ ] 2032 batteries&#10;[X] Sponge duster&#10;Black laundry basket"
+      placeholder=""
     />
 
     <div class="foot">
