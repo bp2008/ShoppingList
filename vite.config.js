@@ -22,6 +22,11 @@ export default defineConfig({
   resolve: {
     alias: { '@': appRoot },
   },
+  // Honour PORT so more than one dev server can run on the same machine. Vite does not
+  // read it on its own, and 5173 is the only port it will otherwise offer.
+  server: {
+    port: Number(process.env.PORT) || 5173,
+  },
   build: {
     // Intermediate output. scripts/build-release.mjs relocates this into
     // dist/releases/<buildId>/ and derives the precache manifest from it.

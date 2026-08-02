@@ -1,13 +1,8 @@
 import { reactive } from 'vue'
 import { newId } from './ids'
-import {
-  DataTooNewError,
-  MAX_SCHEMA,
-  coerceLists,
-  emptyDoc,
-  migrate,
-} from './migrations'
+import { DataTooNewError, MAX_SCHEMA, emptyDoc, migrate } from './migrations'
 import * as persist from './persist'
+import type { TextItem } from './transfer'
 import {
   DEFAULT_SETTINGS,
   UNDO_LIMIT,
@@ -335,22 +330,156 @@ export function adoptForeignItem(listId: string, name: string, index: number): b
   })
 }
 
+/* ---------------------------------------------------------------------- import */
+
+/** What to do with one incoming list. */
+export type ImportMode = 'create' | 'merge' | 'overwrite'
+
+export interface ImportPlan {
+  /** An incoming list, already coerced by core/transfer. */
+  list: List
+  mode: ImportMode
+  /** The local list this targets. Required for 'merge' and 'overwrite', ignored for 'create'. */
+  targetId?: string
+}
+
+/** The local list an incoming one would collide with, matched by name as the user sees it. */
+export function findListByName(name: string): List | undefined {
+  return state.lists.find((l) => sameName(l.name, name))
+}
+
 /**
- * Replace all lists from pasted JSON.
+ * Copy an incoming list in beside the ones already here.
  *
- * Routed through commit like any other action, so an accidental import is one undo away
- * -- the handoff calls this out specifically. Input is coerced, not trusted.
+ * The incoming id is reused when it is free, so re-importing a backup onto a device that
+ * has since deleted the list restores the same identity; a collision takes a fresh id
+ * instead, because two lists sharing one id would make every lookup ambiguous.
  */
-export function importLists(raw: unknown): number | null {
-  const incoming = coerceLists(raw)
-  if (incoming.length === 0 && !Array.isArray(raw) && !(raw && typeof raw === 'object')) {
-    return null
+function createFromImport(incoming: List): void {
+  const id = state.lists.some((l) => l.id === incoming.id) ? newId() : incoming.id
+  state.lists.push({ ...incoming, id })
+}
+
+/**
+ * Replace a list's contents wholesale.
+ *
+ * The LOCAL id survives, not the incoming one: the list may be the screen behind the
+ * dialog, and swapping its id under the router would bounce the user home mid-import.
+ */
+function overwriteFromImport(targetId: string, incoming: List): void {
+  const at = state.lists.findIndex((l) => l.id === targetId)
+  if (at === -1) return
+  state.lists.splice(at, 1, { ...incoming, id: targetId })
+}
+
+/**
+ * Fold an incoming list into an existing one. ADDITIVE ONLY.
+ *
+ * Nothing is removed and no quantity is touched: an import must never be able to delete
+ * what the user already had, and a row that is already on the list is left exactly as they
+ * left it. A quantity only comes across on a row that did not exist here at all.
+ *
+ * Catalog entries are matched by name, case-insensitively, and new ones are minted with a
+ * fresh cid rather than the incoming one, which could collide with a cid this list is
+ * already using.
+ */
+function mergeFromImport(targetId: string, incoming: List): void {
+  const target = getList(targetId)
+  if (!target) return
+
+  const localCid = new Map<string, string>()
+  for (const entry of incoming.catalog) {
+    const existing = target.catalog.find((c) => sameName(c.name, entry.name))
+    if (existing) {
+      localCid.set(entry.id, existing.id)
+      continue
+    }
+    const cid = newId()
+    target.catalog.push({ id: cid, name: entry.name })
+    localCid.set(entry.id, cid)
   }
-  const label = incoming.length === 1 ? 'Imported 1 list' : `Imported ${incoming.length} lists`
-  commit(label, () => {
-    state.lists.splice(0, state.lists.length, ...incoming)
+
+  for (const row of incoming.items) {
+    const cid = localCid.get(row.cid)
+    if (!cid) continue
+    if (target.items.some((it) => it.cid === cid)) continue
+    target.items.push({ cid, qty: clampQty(row.qty) })
+  }
+}
+
+/**
+ * Apply a set of import decisions as ONE action.
+ *
+ * One commit for the whole import, so a mis-aimed overwrite is a single undo away -- the
+ * handoff calls that out specifically, and it matters far more here than anywhere else in
+ * the app because overwrite is the only destructive path an import has.
+ *
+ * @returns the number of lists imported, or 0 if nothing actually changed.
+ */
+export function applyImport(plans: ImportPlan[]): number {
+  if (plans.length === 0) return 0
+
+  const label = plans.length === 1 ? 'Imported 1 list' : `Imported ${plans.length} lists`
+  const changed = commit(label, () => {
+    for (const plan of plans) {
+      // A merge or overwrite whose target has gone is imported as a new list rather than
+      // dropped: the user asked for that list, and losing it silently is the worse answer.
+      const targetId = plan.mode === 'create' ? null : (plan.targetId ?? null)
+      if (targetId === null || !getList(targetId)) createFromImport(plan.list)
+      else if (plan.mode === 'overwrite') overwriteFromImport(targetId, plan.list)
+      else mergeFromImport(targetId, plan.list)
+    }
   })
-  return incoming.length
+  return changed ? plans.length : 0
+}
+
+/**
+ * Merge a pasted plain-text checklist into one list. Always additive, never a replace.
+ *
+ * A ticked box means the user already has that item, so it joins the catalog and stops
+ * there; anything unticked -- or carrying no checkbox at all, which is what a bare list of
+ * names is -- also lands in the left column. Names already in the catalog are reused, rows
+ * already on the list are left alone, and nothing is ever removed.
+ *
+ * The whole thing is resolved against the current list BEFORE commit() runs, because the
+ * label has to name how many items actually land and commit() needs that label up front.
+ *
+ * @returns the number of items that changed something.
+ */
+export function importTextItems(listId: string, entries: TextItem[]): number {
+  const list = getList(listId)
+  if (!list) return 0
+
+  const plan = entries
+    .map((entry) => {
+      const existing = list.catalog.find((c) => sameName(c.name, entry.name))
+      const alreadyOnList = existing != null && list.items.some((it) => it.cid === existing.id)
+      return {
+        name: entry.name,
+        cid: existing?.id ?? null,
+        addRow: entry.checked !== true && !alreadyOnList,
+      }
+    })
+    // Everything reaches the catalog, so a name that is new is worth importing even when
+    // it is ticked. A ticked name already in the catalog changes nothing at all.
+    .filter((p) => p.cid === null || p.addRow)
+
+  if (plan.length === 0) return 0
+
+  const label = plan.length === 1 ? 'Imported 1 item' : `Imported ${plan.length} items`
+  commit(label, () => {
+    const l = getList(listId)
+    if (!l) return
+    for (const p of plan) {
+      let cid = p.cid
+      if (cid === null) {
+        cid = newId()
+        l.catalog.push({ id: cid, name: p.name })
+      }
+      if (p.addRow && !l.items.some((it) => it.cid === cid)) l.items.push({ cid, qty: 1 })
+    }
+  })
+  return plan.length
 }
 
 /* --------------------------------------------------------------------- settings */

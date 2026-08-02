@@ -1,18 +1,32 @@
 <script>
+import DialogShell from './DialogShell.vue'
+import ExportDialog from './ExportDialog.vue'
+import ImportDialog from './ImportDialog.vue'
+import TextImportDialog from './TextImportDialog.vue'
 import * as store from '../core/store'
 import { clampQty } from '../core/types'
 import { ui, showToast } from '../ui/state'
 import { goHome } from '../ui/navigation'
 
 /**
- * Every modal, sharing one shell.
+ * The small modals, plus the dispatch to the three that are not small.
  *
- * Backdrop click and Escape cancel; Enter submits the text dialogs. Duplicate catalog
- * names are rejected with a toast rather than inline validation — the handoff is
- * specific about that, and it keeps the dialog from growing a second layout state.
+ * Backdrop click and Escape cancel — both owned by DialogShell — and Enter submits the
+ * text dialogs. Duplicate catalog names are rejected with a toast rather than inline
+ * validation: the handoff is specific about that, and it keeps the dialog from growing a
+ * second layout state.
+ *
+ * Import and export are components of their own because each is a workflow rather than a
+ * field: which lists, from where, and what to do about a name that already exists. They
+ * share this shell, not this file.
  */
+
+/** Kinds this component draws itself. Anything else dispatches above. */
+const SIMPLE = ['new-list', 'add-catalog', 'quantity', 'rename', 'delete-list', 'about']
+
 export default {
   name: 'Dialogs',
+  components: { DialogShell, ExportDialog, ImportDialog, TextImportDialog },
   props: {
     list: { type: Object, default: null },
     version: { type: String, default: '' },
@@ -24,12 +38,14 @@ export default {
       text: '',
       alsoAdd: true,
       qty: 1,
-      json: '',
     }
   },
   computed: {
     kind() {
       return ui.dialog
+    },
+    simple() {
+      return SIMPLE.includes(this.kind)
     },
     isText() {
       return ['new-list', 'add-catalog', 'rename'].includes(this.kind)
@@ -41,7 +57,6 @@ export default {
         quantity: 'Quantity',
         rename: 'Rename list',
         'delete-list': 'Delete list',
-        data: 'Import / export data',
         about: 'About',
       }[this.kind]
     },
@@ -52,7 +67,6 @@ export default {
         quantity: 'Set',
         rename: 'Rename',
         'delete-list': 'Delete',
-        data: 'Import',
         about: 'Close',
       }[this.kind]
     },
@@ -74,14 +88,12 @@ export default {
       this.text = this.kind === 'rename' ? (this.list?.name ?? '') : ''
       this.alsoAdd = true
       this.qty = ui.dialogArg?.value ?? 1
-      if (this.kind === 'data') {
-        this.json = JSON.stringify({ lists: store.state.lists }, null, 1)
-      }
       this.$nextTick(() => this.$refs.field?.focus())
     },
+    // Escape belongs to DialogShell; handling it here as well would emit two closes and
+    // walk two entries back out of history.
     onKey(e) {
-      if (e.key === 'Escape') this.$emit('close')
-      else if (e.key === 'Enter' && this.isText) this.submit()
+      if (e.key === 'Enter' && this.isText) this.submit()
     },
     bump(delta) {
       this.qty = clampQty(this.qty + delta)
@@ -93,12 +105,6 @@ export default {
     openTroubleshooting() {
       this.$emit('close')
       this.$nextTick(() => window.__rescue?.('manual'))
-    },
-    copyJson() {
-      navigator.clipboard?.writeText(this.json).then(
-        () => showToast('Copied'),
-        () => showToast('Copy blocked by browser'),
-      )
     },
     submit() {
       const id = this.list?.id
@@ -133,20 +139,6 @@ export default {
           // then leaving would be two navigations racing over the same history entry.
           goHome()
           return
-        case 'data': {
-          let parsed
-          try {
-            parsed = JSON.parse(this.json)
-          } catch {
-            showToast('Could not read that data')
-            return
-          }
-          if (store.importLists(parsed) === null) {
-            showToast('Could not read that data')
-            return
-          }
-          break
-        }
         default:
           break
       }
@@ -157,114 +149,66 @@ export default {
 </script>
 
 <template>
-  <div class="scrim slp-fade" @click.self="$emit('close')">
-    <div class="card slp-pop" role="dialog" aria-modal="true">
-      <h2>{{ title }}</h2>
+  <ExportDialog v-if="kind === 'export'" @close="$emit('close')" />
+  <ImportDialog v-else-if="kind === 'import'" @close="$emit('close')" />
+  <TextImportDialog
+    v-else-if="kind === 'import-text' && list"
+    :list="list"
+    @close="$emit('close')"
+  />
 
-      <template v-if="isText">
-        <input
-          ref="field"
-          v-model="text"
-          class="field"
-          type="text"
-          :placeholder="kind === 'add-catalog' ? 'Item name' : 'List name'"
-          autocomplete="off"
-        />
-        <label v-if="kind === 'add-catalog'" class="check">
-          <input v-model="alsoAdd" type="checkbox" />
-          <span>Also add to my list now</span>
-        </label>
-      </template>
+  <DialogShell v-else-if="simple" :title="title" @close="$emit('close')">
+    <template v-if="isText">
+      <input
+        ref="field"
+        v-model="text"
+        class="field"
+        type="text"
+        :placeholder="kind === 'add-catalog' ? 'Item name' : 'List name'"
+        autocomplete="off"
+      />
+      <label v-if="kind === 'add-catalog'" class="check">
+        <input v-model="alsoAdd" type="checkbox" />
+        <span>Also add to my list now</span>
+      </label>
+    </template>
 
-      <div v-else-if="kind === 'quantity'" class="stepper">
-        <button class="tap" type="button" aria-label="Less" @click="bump(-1)">−</button>
-        <span class="count">{{ qty }}</span>
-        <button class="tap" type="button" aria-label="More" @click="bump(1)">+</button>
-      </div>
-
-      <p v-else-if="kind === 'delete-list'" class="body">
-        The list and its catalog are removed. You can undo this.
-      </p>
-
-      <textarea v-else-if="kind === 'data'" ref="field" v-model="json" class="json" spellcheck="false" />
-
-      <p v-else-if="kind === 'about'" class="body">
-        Shopping List v{{ version }}<br />
-        Offline-first. Everything is stored on this device — no account, no server.
-      </p>
-
-      <div class="actions">
-        <button
-          v-if="kind === 'about'"
-          class="link tap"
-          type="button"
-          @click="openTroubleshooting"
-        >
-          Troubleshooting…
-        </button>
-        <button v-if="kind === 'data'" class="link tap" type="button" @click="copyJson">
-          Copy
-        </button>
-        <span class="spacer" />
-        <button v-if="kind !== 'about'" class="link tap" type="button" @click="$emit('close')">
-          Cancel
-        </button>
-        <button
-          class="primary tap"
-          :class="{ danger: kind === 'delete-list' }"
-          type="button"
-          @click="kind === 'about' ? $emit('close') : submit()"
-        >
-          {{ primaryLabel }}
-        </button>
-      </div>
+    <div v-else-if="kind === 'quantity'" class="stepper">
+      <button class="tap" type="button" aria-label="Less" @click="bump(-1)">−</button>
+      <span class="count">{{ qty }}</span>
+      <button class="tap" type="button" aria-label="More" @click="bump(1)">+</button>
     </div>
-  </div>
+
+    <p v-else-if="kind === 'delete-list'" class="body">
+      The list and its catalog are removed. You can undo this.
+    </p>
+
+    <p v-else-if="kind === 'about'" class="body">
+      Shopping List v{{ version }}<br />
+      Offline-first. Everything is stored on this device — no account, no server.
+    </p>
+
+    <template #actions>
+      <button v-if="kind === 'about'" class="link tap" type="button" @click="openTroubleshooting">
+        Troubleshooting…
+      </button>
+      <span class="spacer" />
+      <button v-if="kind !== 'about'" class="link tap" type="button" @click="$emit('close')">
+        Cancel
+      </button>
+      <button
+        class="primary tap"
+        :class="{ danger: kind === 'delete-list' }"
+        type="button"
+        @click="kind === 'about' ? $emit('close') : submit()"
+      >
+        {{ primaryLabel }}
+      </button>
+    </template>
+  </DialogShell>
 </template>
 
 <style scoped>
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: var(--scrim);
-}
-
-.card {
-  width: min(320px, 100%);
-  padding: 18px 18px 14px;
-  background: var(--surface);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-}
-
-h2 {
-  margin: 0 0 10px;
-  font: 600 15px/1.3 var(--font);
-  color: var(--text);
-}
-
-.body {
-  margin: 0 0 12px;
-  font: 400 12.5px/1.45 var(--font);
-  color: var(--text2);
-}
-
-.field {
-  width: 100%;
-  height: 46px;
-  padding: 0 12px;
-  font: 400 15px var(--font);
-  color: var(--text);
-  border: 1.5px solid var(--accent);
-  border-radius: 8px;
-  box-sizing: border-box;
-}
-
 .check {
   display: flex;
   align-items: center;
@@ -303,48 +247,5 @@ h2 {
   text-align: center;
   font: 600 19px var(--mono);
   color: var(--text);
-}
-
-.json {
-  width: 100%;
-  height: 150px;
-  padding: 8px;
-  font: 400 11.5px/1.35 var(--mono);
-  color: var(--text);
-  border: 1.5px solid var(--accent);
-  border-radius: 8px;
-  box-sizing: border-box;
-  resize: none;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 14px;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.link {
-  padding: 10px 10px;
-  font: 500 13px var(--font);
-  color: var(--text2);
-  border-radius: 7px;
-  cursor: pointer;
-}
-
-.primary {
-  padding: 10px 14px;
-  font: 600 13.5px var(--font);
-  color: var(--accent);
-  border-radius: 7px;
-  cursor: pointer;
-}
-
-.primary.danger {
-  color: var(--danger);
 }
 </style>

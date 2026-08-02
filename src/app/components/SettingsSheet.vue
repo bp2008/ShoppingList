@@ -1,6 +1,7 @@
 <script>
 import * as store from '../core/store'
 import { UNDO_LIMIT } from '../core/types'
+import { openLayer } from '../ui/navigation'
 
 export default {
   name: 'SettingsSheet',
@@ -25,6 +26,17 @@ export default {
     },
     toggleAskQty() {
       store.setAskQty(!store.state.settings.askQty)
+    },
+
+    /**
+     * Opened as a layer ON TOP of this sheet, not in place of it.
+     *
+     * The sheet is `?settings`; this pushes `?settings&dialog=export`, so one Back closes
+     * the dialog and leaves Settings standing — which is where the user was, and where
+     * they will want to be after a backup.
+     */
+    openTransfer(kind) {
+      openLayer({ dialog: kind })
     },
   },
 }
@@ -86,9 +98,27 @@ export default {
         </button>
       </section>
 
+      <section class="card">
+        <h2>Your data</h2>
+        <button class="link-row tap" type="button" @click="openTransfer('export')">
+          <span class="texts">
+            <span class="label">Export lists…</span>
+            <span class="hint">Copy to the clipboard, or save a JSON file</span>
+          </span>
+          <span class="chev">›</span>
+        </button>
+        <button class="link-row tap" type="button" @click="openTransfer('import')">
+          <span class="texts">
+            <span class="label">Import lists…</span>
+            <span class="hint">Paste or load a file, then choose what to bring in</span>
+          </span>
+          <span class="chev">›</span>
+        </button>
+      </section>
+
       <p class="note">
         Undo history keeps the last {{ UNDO_LIMIT }} actions. All data is stored on this device
-        only.
+        only, so an export is the only backup there is.
       </p>
     </div>
   </div>
@@ -227,8 +257,29 @@ input[type='range'] {
   cursor: pointer;
 }
 
-.toggle-row:focus-visible {
+.toggle-row:focus-visible,
+.link-row:focus-visible {
   outline-offset: -1px;
+}
+
+/* Same shape as a toggle row; the chevron is what says it opens something instead. */
+.link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 0;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chev {
+  flex: 0 0 auto;
+  font: 300 20px/1 var(--font);
+  color: var(--text3);
 }
 
 .texts {

@@ -73,10 +73,14 @@ export default {
           Update ready — restart
         </button>
 
+        <!--
+          Import / export lives in Settings, not here. It is a once-in-a-while act — a
+          backup, or a move to a new phone — and it was crowding a menu whose other entries
+          are all things you do on a shopping trip.
+        -->
         <template v-if="view === 'home'">
           <button class="item tap" type="button" @click="run('new-list')">New list</button>
           <hr />
-          <button class="item tap" type="button" @click="run('data')">Import / export data</button>
           <button class="item tap" type="button" @click="run('settings')">Settings</button>
           <button class="item tap" type="button" @click="run('about')">About</button>
         </template>
@@ -93,7 +97,11 @@ export default {
           <hr />
           <button class="item tap" type="button" @click="run('rename')">Rename list</button>
           <button class="item tap" type="button" @click="run('copy-text')">Copy list as text</button>
-          <button class="item tap" type="button" @click="run('data')">Import / export data</button>
+          <!-- Sits next to its opposite number, and unlike JSON transfer it acts on THIS
+               list, so it would be lost in Settings. -->
+          <button class="item tap" type="button" @click="run('import-text')">
+            Add items from text…
+          </button>
           <button class="item tap" type="button" @click="run('settings')">Settings</button>
           <hr />
           <button class="item danger" type="button" @click="run('delete-list')">

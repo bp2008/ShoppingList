@@ -25,7 +25,10 @@ export const ui = reactive({
   drawerOpen: false,
   settingsOpen: false,
 
-  /** null | 'new-list' | 'add-catalog' | 'quantity' | 'rename' | 'delete-list' | 'data' | 'about' */
+  /**
+   * null | 'new-list' | 'add-catalog' | 'quantity' | 'rename' | 'delete-list' | 'export' |
+   * 'import' | 'import-text' | 'about'
+   */
   dialog: null,
   /** Payload for the open dialog (e.g. the cid whose quantity is being set). */
   dialogArg: null,

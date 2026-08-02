@@ -10,6 +10,7 @@ import { listAsText } from './core/format'
 import { criticalSection } from './core/bootBridge'
 import { ui, showToast } from './ui/state'
 import { installTheme } from './ui/theme'
+import { installViewport } from './ui/viewport'
 import { closeLayer, goHome, openLayer, replaceLayer, replaceWithList } from './ui/navigation'
 
 /**
@@ -22,7 +23,7 @@ const DRAWER_LAYERS = {
   'new-list': { dialog: 'new-list' },
   settings: { settings: null },
   about: { dialog: 'about' },
-  data: { dialog: 'data' },
+  'import-text': { dialog: 'import-text' },
   rename: { dialog: 'rename' },
   'delete-list': { dialog: 'delete-list' },
   'select-catalog': { select: null },
@@ -63,6 +64,8 @@ export default {
   },
   mounted() {
     installTheme()
+    // Publishes the usable viewport, which is what keeps a dialog off the keyboard.
+    installViewport()
 
     // Row height is a token so every row reads it without prop drilling.
     this.$watch(

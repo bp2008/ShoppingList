@@ -25,9 +25,14 @@ const DIALOGS = new Set([
   'quantity',
   'rename',
   'delete-list',
-  'data',
+  'export',
+  'import',
+  'import-text',
   'about',
 ])
+
+/** Kinds that act on the open list and are meaningless without one. */
+const LIST_DIALOGS = new Set(['add-catalog', 'quantity', 'rename', 'delete-list', 'import-text'])
 
 /**
  * Layer query keys, topmost first.
@@ -64,7 +69,10 @@ function syncUi(route) {
   ui.drawerOpen = 'menu' in q
   ui.settingsOpen = 'settings' in q
 
-  const dialog = DIALOGS.has(q.dialog) ? q.dialog : null
+  // A list dialog reached on the home screen has no subject, so it is dropped exactly
+  // like an unknown kind rather than mounted against a null list.
+  const named = DIALOGS.has(q.dialog) ? q.dialog : null
+  const dialog = named && LIST_DIALOGS.has(named) && !onList ? null : named
   ui.dialog = dialog
   ui.dialogArg =
     dialog === 'quantity' ? { cid: String(q.cid ?? ''), value: clampQty(Number(q.qty)) } : null

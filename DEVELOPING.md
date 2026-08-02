@@ -135,6 +135,12 @@ screen — routing them would unmount the list underneath and lose its scroll po
 They stack in the URL exactly as they stack on screen, so `?search&menu` closes back to
 `?search`.
 
+Dialog kinds are an allow-list in `ui/navigation.js`, and the ones that act on the open
+list (`add-catalog`, `quantity`, `rename`, `delete-list`, `import-text`) are dropped when
+the URL names them on the home screen — a deep link cannot mount a dialog against a null
+list. `export` and `import` are not in that set: they are opened from Settings and are
+reached from either screen.
+
 **Hash history, not path history.** The published site is static, is served from an
 arbitrary mount path, and its service worker deliberately knows nothing about app URLs.
 Path routing would need every deep link to fall back to `index.html` on the server, which
@@ -332,8 +338,9 @@ npm test
 ```
 
 Covers `src/app/core/**` only — the drag geometry, the undo funnel, the migrations and
-input coercion, the derived column ordering, the exact formatted strings, and the drag
-controller's teardown. No component tests; the value here is the invariants.
+input coercion, the derived column ordering, the exact formatted strings, the import and
+export rules, and the drag controller's teardown. No component tests; the value here is the
+invariants.
 
 Most run in Node. `dragController.test.ts` opts into a DOM with a
 `// @vitest-environment happy-dom` docblock.
@@ -391,15 +398,18 @@ src/app/
     migrations.ts         Schema versioning and input coercion.
     selectors.ts          Derived column composition.
     format.ts             Exact user-visible strings and spine colours.
+    transfer.ts           Import / export as pure functions over text.
     dragMath.ts           Pure drag geometry.
     dragController.ts     Pointer wiring and teardown.
     bootBridge.ts         The three bootloader globals.
   components/           Plain-JS Vue SFCs.
+    DialogShell.vue       The scrim/card every modal is drawn in.
   ui/                   Ephemeral state, theme, routing, input modality.
     router.js             Route table. Hash history. Screens only.
     navigation.js         Navigation intents + the URL → ui projection.
     state.js              Ephemeral UI state. Not persisted.
     theme.js              Theme application and the theme-color meta.
+    viewport.js           The visual viewport, as --vv-height / --vv-top.
     inputMode.js          Last input device, published as html[data-input].
   styles/tokens.css     Design tokens + interaction utilities. No component
                         hardcodes a colour.
@@ -458,6 +468,20 @@ was observed in the design prototype.
 until the document is visible. Without both, a healthy build gets rolled back because the
 user switched apps during startup.
 
+**A dialog centred on the layout viewport ends up behind the keyboard.** The on-screen
+keyboard shrinks the *visual* viewport and leaves the layout viewport — and therefore every
+`position: fixed` box, including the app root — exactly where it was, so nothing in CSS
+notices. `ui/viewport.js` publishes `--vv-height` / `--vv-top` from `window.visualViewport`
+and `DialogShell.vue` sizes the scrim from them. Two things that look like details are not:
+the scrim needs `box-sizing: border-box`, because its height *is* the usable area and its
+padding has to come out of that; and the card centres with `margin: auto` rather than the
+flex alignment properties, so that a card taller than the usable area lands at the top and
+scrolls instead of putting its own heading above the scroll origin.
+
+**Escape is handled in `DialogShell.vue` and nowhere else.** Closing is a router `back()`,
+so a second handler for the same key emits a second close and walks two entries out of
+history. `Dialogs.vue` keeps its own `keydown` listener only for Enter.
+
 **The IndexedDB contract is shared.** `slp-data` / `kv` / `doc` appears in
 `core/persist.ts`, `shell/rescue.js`, and `shell/reset.html`. Changing it in one place
 breaks the ability to export lists from a broken app, which is the single most important
@@ -500,6 +524,30 @@ Every mutation goes through `commit(label, fn)`, which snapshots before and afte
 `modified` on exactly the lists that changed, records one undo entry, clears redo,
 persists, and toasts. A mutation that changes nothing is discarded silently — no undo
 entry, no toast, no timestamp bump.
+
+### Import and export
+
+`core/transfer.ts` is the text half — building the export payload, parsing one back, and
+parsing a pasted plain-text checklist — and holds no store references, so all of it is
+testable without a DOM. `store.applyImport` / `store.importTextItems` are the store half,
+because they have to go through `commit()`.
+
+Pasted JSON is run through the same `coerceLists` as stored data: an import is not more
+trusted than a file we wrote ourselves. A payload whose `schemaVersion` is ahead of this
+build is refused rather than coerced, for the same reason startup refuses it.
+
+Three rules the tests pin down, and which the UI wording promises:
+
+- **An import never deletes anything except under `overwrite`.** Merge adds missing catalog
+  names and missing rows and stops there.
+- **An import never duplicates a row and never edits a quantity.** A quantity crosses over
+  only on a row that did not exist locally at all.
+- **A plain-text import is always a merge.** There is no overwrite path for it and no
+  prompt offering one. A ticked box means the user already has that item, so it joins the
+  catalog without joining the list; no checkbox at all is treated as wanted, because a bare
+  list of names is a shopping list.
+
+The whole of one import is a single `commit()`, so a mis-aimed overwrite is one undo away.
 
 ### Changing the schema
 

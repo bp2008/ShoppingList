@@ -44,10 +44,21 @@ handled carefully with the ability to roll back if you get a bad update.
 Everything is stored on your device. There is no account, no server, and nothing is sent
 anywhere.
 
-That also means there is no automatic backup, so the menu has **Import / export data**:
-your lists as plain JSON that you can copy, save to a file, and paste back in later or on
-another device. **Copy list as text** puts a shopping list on the clipboard in a form you
-can paste into a message.
+That also means there is no automatic backup, so **Settings → Your data** has import and
+export:
+
+- **Export lists…** — tick the lists you want, then copy them to the clipboard or save
+  them as a JSON file.
+- **Import lists…** — paste, or load a file, then tick what to bring in. If a list you are
+  importing has the same name as one you already have, you choose: **merge** adds whatever
+  is missing and changes nothing else, **overwrite** replaces that list entirely. Either
+  way it is one undo away.
+
+On a list, the menu also has **Add items from text…**, for pasting a plain list of names —
+one per line. A Google Keep checklist pastes in as-is: `[ ]` and `[X]` are understood, and
+anything already ticked goes into the catalog without joining your list. It only ever adds;
+nothing is removed and no quantity changes. **Copy list as text** is the other direction,
+putting a shopping list on the clipboard in a form you can paste into a message.
 
 Uninstalling the app, or clearing your browser's site data, deletes your lists. Export
 first if you care about them.
