@@ -4,6 +4,15 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 # User-specific files
+private/
+
+# JavaScript toolchain.
+# NOTE: docs/ is the published GitHub Pages site and MUST stay tracked. Do not add it.
+dist/
+.build/
+.stage/
+.vite/
+*.tsbuildinfo
 *.rsuser
 *.suo
 *.user

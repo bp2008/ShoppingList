@@ -1,0 +1,142 @@
+/*
+ * Design tokens, verbatim from the handoff.
+ *
+ * Every component reads these; no component hardcodes a colour. The OLED requirement is
+ * explicit: --bg and --topbar are true #000000 in dark mode, never a lighter grey.
+ */
+
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface2: #fafbfc;
+  --line: rgba(0, 0, 0, 0.09);
+  --line2: rgba(0, 0, 0, 0.055);
+  --text: #14161a;
+  --text2: #5c6068;
+  --text3: #9aa0a8;
+  --fade: #a6abb2;
+  --accent: #2563eb;
+  --accent-bg: #e8effd;
+  --chip: #eef0f3;
+  --grip: #c3c8ce;
+  --grip2: #e2e5e9;
+  --danger: #d23b3b;
+  --topbar: #ffffff;
+  --scrim: rgba(20, 22, 26, 0.4);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+
+  --row-height: 44px;
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+
+body[data-theme='oled'] {
+  --bg: #000000;
+  --surface: #0b0c0e;
+  --surface2: #0d0f11;
+  --line: #1c1f24;
+  --line2: #131619;
+  --text: #e8eaed;
+  --text2: #9aa0a8;
+  --text3: #6b7078;
+  --fade: #54595f;
+  --accent: #4d8dff;
+  --accent-bg: #0d1b33;
+  --chip: #17191d;
+  --grip: #3d4147;
+  --grip2: #22262b;
+  --danger: #f36b6b;
+  --topbar: #000000;
+  --scrim: rgba(0, 0, 0, 0.66);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 14.5px/1.32 var(--font);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
+  -webkit-appearance: auto;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/*
+ * The only two animations in the app. Nothing else animates -- the drag chip is driven
+ * by transform writes, not transition.
+ */
+@keyframes slp-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slp-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.slp-pop {
+  animation: slp-pop 160ms ease;
+}
+
+.slp-fade {
+  animation: slp-fade 140ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slp-pop,
+  .slp-fade {
+    animation: none;
+  }
+}
+
+/*
+ * Drag gesture surfaces.
+ *
+ * These are STATIC and must never be toggled from JavaScript. A `touch-action` value
+ * left stuck by an interrupted drag kills scrolling for the rest of the session, which
+ * is precisely the failure dragController.ts is built to prevent. Keeping the values in
+ * CSS means there is no code path that can strand them.
+ */
+.grip {
+  touch-action: none;
+  cursor: grab;
+}
+
+.row-text {
+  touch-action: pan-y;
+}

@@ -1,0 +1,27 @@
+{
+  "name": "shopping-list",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline-first shopping list PWA. Static hosting, atomic staged updates, rescue bootloader.",
+  "scripts": {
+    "dev": "vite",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "node scripts/build.mjs",
+    "release": "node scripts/deploy.mjs docs",
+    "stage": "node scripts/deploy.mjs"
+  },
+  "dependencies": {
+    "idb-keyval": "^6.3.0",
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "happy-dom": "^20.11.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
+  }
+}

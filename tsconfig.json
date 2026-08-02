@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    // ES2022 throughout, matching build.target in vite.config.js. The app targets modern
+    // smartphones only and there is no Babel in the pipeline, so downlevelling would buy
+    // nothing. Keep these two in sync.
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    // Mixed-language project: core/ is TypeScript and is checked; components are plain
+    // JS Vue SFCs and are not. A .js file can opt into checking with `// @ts-check`.
+    "allowJs": true,
+    "checkJs": false,
+
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+
+    // TypeScript 7 removed `baseUrl`; `paths` resolves relative to this file.
+    "paths": { "@/*": ["./src/app/*"] }
+  },
+  // Deliberately narrow. Type checking covers src/app/core/** -- the data model, the undo
+  // funnel, the migrations, the drag math -- which is where the invariants live.
+  // Components are plain-JS Vue SFCs and are not checked (see `checkJs` above); a .js
+  // file can opt in with `// @ts-check`. src/shell/** is classic-script bootloader code
+  // that runs before any module system exists, so checking it produces only noise.
+  "include": ["src/app/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".build"]
+}

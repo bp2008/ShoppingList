@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><style>body{margin:0;background:#e9eaec;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif}a{color:#2563eb}a:hover{color:#1d4ed8}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+
+<section class="dv-turn" id="t0">
+<div class="dv-thd"><a class="dv-tid" href="#t0">0</a><span class="dv-tname">Assumptions &amp; approach</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,300px);gap:24px;font:12.5px/1.6 system-ui,sans-serif;color:#33363b">
+<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:18px 20px">
+<div style="font-weight:650;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin-bottom:10px">What I took from your answers</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<div>Landscape phone is the optimal shape; portrait must work equally well. Two columns <em>always</em> — never tabs, never a sheet. Narrow screens lose padding, not columns.</div>
+<div>Drag is the only verb. No checkboxes except in catalog delete-mode. Right→left adds (catalog keeps the item), left→right removes.</div>
+<div>Re-dragging an item already on the list opens a quantity prompt.</div>
+<div>Right column: this list's own catalog, alphabetical; optionally other lists' items appended below.</div>
+</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:18px 20px">
+<div style="font-weight:650;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin-bottom:10px">Design reasoning</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<div><strong>Row height is the whole game.</strong> A drag target needs ≥44px, but a landscape phone is ~340px tall minus a 52px bar. So rows are 44px with 15px text — dense but grabbable — and the columns scroll independently.</div>
+<div><strong>The gutter carries meaning.</strong> The centre divider is the add/remove threshold; it lights up during a drag so direction is unambiguous.</div>
+<div><strong>Two columns, one visual weight.</strong> The left list is the artifact, so it gets solid rows; the catalog is a source, so it reads lighter.</div>
+</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:18px 20px">
+<div style="font-weight:650;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin-bottom:10px">Palette · neutral utility</div>
+<div style="display:flex;gap:8px;margin-bottom:12px">
+<div style="width:40px"><div style="height:40px;border-radius:5px;background:#f4f5f7;border:1px solid rgba(0,0,0,.1)"></div><div style="font:9.5px ui-monospace,monospace;color:#6b7280;margin-top:4px">app bg</div></div>
+<div style="width:40px"><div style="height:40px;border-radius:5px;background:#fff;border:1px solid rgba(0,0,0,.1)"></div><div style="font:9.5px ui-monospace,monospace;color:#6b7280;margin-top:4px">surface</div></div>
+<div style="width:40px"><div style="height:40px;border-radius:5px;background:#14161a"></div><div style="font:9.5px ui-monospace,monospace;color:#6b7280;margin-top:4px">ink</div></div>
+<div style="width:40px"><div style="height:40px;border-radius:5px;background:#000;border:1px solid rgba(0,0,0,.1)"></div><div style="font:9.5px ui-monospace,monospace;color:#6b7280;margin-top:4px">OLED</div></div>
+<div style="width:40px"><div style="height:40px;border-radius:5px;background:#2563eb"></div><div style="font:9.5px ui-monospace,monospace;color:#6b7280;margin-top:4px">accent</div></div>
+</div>
+<div>System sans throughout, 15px rows / 13px meta / 11px uppercase labels. Dark mode is <strong>#000</strong> ground with #0e0f11 rows so scrolling still reads as separated on OLED, accent lifted to #4d8dff for contrast on black.</div>
+</div>
+</div>
+</section>
+
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Merged direction — <a class="dv-oid" href="#1a">1a</a> grid + <a class="dv-oid" href="#1c">1c</a> spine · <a class="dv-oid" href="#2c">2c</a> columns · revised menus</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="4a"><div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Homepage · light · recency-ordered, spine fades with age</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#6b7280;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 16px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)">
+<div style="flex:1;min-width:0"><div style="font:600 17px/1.1 system-ui">Shopping List</div><div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#9aa0a8;margin-top:2px">v1.4.0</div></div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;overflow:hidden;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start">
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden"><div style="width:4px;background:#2563eb;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Weekly Groceries</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 5px;border-radius:4px;flex:none">24</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#5c6068;margin-top:7px"><div>Milk</div><div>Eggs ×2</div><div>Sourdough</div><div>Bananas</div><div>Chicken thighs</div><div>Olive oil</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:7px">+8 more · 2m ago</div></div></div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden"><div style="width:4px;background:#4f78cf;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Pharmacy</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 5px;border-radius:4px;flex:none">11</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#5c6068;margin-top:7px"><div>Ibuprofen</div><div>Plasters</div><div>Toothpaste</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:7px">Yesterday</div></div></div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden"><div style="width:4px;background:#7c8794;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Costco Run</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 5px;border-radius:4px;flex:none">37</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#5c6068;margin-top:7px"><div>Paper towels</div><div>Rotisserie chicken</div><div>Coffee beans ×2</div><div>Batteries AA</div><div>Frozen berries</div><div>Almonds</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:7px">+3 more · 3 weeks ago</div></div></div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden"><div style="width:4px;background:#a8aeb6;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Hardware Store</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 5px;border-radius:4px;flex:none">52</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#5c6068;margin-top:7px"><div>M6 bolts ×12</div><div>Wood glue</div><div>Sandpaper 120</div><div>Hinges ×4</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:7px">2 months ago</div></div></div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden"><div style="width:4px;background:#d9dce0;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Party Saturday</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 5px;border-radius:4px;flex:none">22</div></div>
+<div style="font:italic 400 11.5px/1.35 system-ui;color:#a6abb2;margin-top:7px">Empty list</div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:7px">4 months ago</div></div></div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden"><div style="width:4px;background:transparent;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Camping Trip</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 5px;border-radius:4px;flex:none">18</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#5c6068;margin-top:7px"><div>Firelighters</div><div>Marshmallows</div><div>Bug spray</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:7px">Over a year ago</div></div></div>
+</div>
+<div style="position:relative;height:0"><div style="position:absolute;right:16px;bottom:16px;width:52px;height:52px;border-radius:26px;background:#2563eb;color:#fff;display:grid;place-items:center;font:300 27px/1 system-ui;box-shadow:0 4px 14px rgba(37,99,235,.4)">+</div></div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4b"><div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Homepage · OLED black · same grid, spine carries the only colour</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#000;display:flex;flex-direction:column;color:#e8eaed">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#7d838c;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 16px;border-bottom:1px solid #1c1f24">
+<div style="flex:1;min-width:0"><div style="font:600 17px/1.1 system-ui">Shopping List</div><div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#6b7078;margin-top:2px">v1.4.0</div></div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #9aa0a8;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#9aa0a8;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;overflow:hidden;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start">
+<div style="display:flex;background:#0d0f11;border:1px solid #1c1f24;border-radius:8px;overflow:hidden"><div style="width:4px;background:#4d8dff;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Weekly Groceries</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#8b9099;background:#17191d;padding:2px 5px;border-radius:4px;flex:none">24</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#9aa0a8;margin-top:7px"><div>Milk</div><div>Eggs ×2</div><div>Sourdough</div><div>Bananas</div><div>Chicken thighs</div><div>Olive oil</div></div>
+<div style="font:400 10.5px system-ui;color:#5a5f66;margin-top:7px">+8 more · 2m ago</div></div></div>
+<div style="display:flex;background:#0d0f11;border:1px solid #1c1f24;border-radius:8px;overflow:hidden"><div style="width:4px;background:#3f6bb8;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Pharmacy</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#8b9099;background:#17191d;padding:2px 5px;border-radius:4px;flex:none">11</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#9aa0a8;margin-top:7px"><div>Ibuprofen</div><div>Plasters</div><div>Toothpaste</div></div>
+<div style="font:400 10.5px system-ui;color:#5a5f66;margin-top:7px">Yesterday</div></div></div>
+<div style="display:flex;background:#0d0f11;border:1px solid #1c1f24;border-radius:8px;overflow:hidden"><div style="width:4px;background:#5c636c;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Costco Run</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#8b9099;background:#17191d;padding:2px 5px;border-radius:4px;flex:none">37</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#9aa0a8;margin-top:7px"><div>Paper towels</div><div>Rotisserie chicken</div><div>Coffee beans ×2</div><div>Batteries AA</div><div>Frozen berries</div><div>Almonds</div></div>
+<div style="font:400 10.5px system-ui;color:#5a5f66;margin-top:7px">+3 more · 3 weeks ago</div></div></div>
+<div style="display:flex;background:#0d0f11;border:1px solid #1c1f24;border-radius:8px;overflow:hidden"><div style="width:4px;background:#3c4149;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Hardware Store</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#8b9099;background:#17191d;padding:2px 5px;border-radius:4px;flex:none">52</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#9aa0a8;margin-top:7px"><div>M6 bolts ×12</div><div>Wood glue</div><div>Sandpaper 120</div><div>Hinges ×4</div></div>
+<div style="font:400 10.5px system-ui;color:#5a5f66;margin-top:7px">2 months ago</div></div></div>
+<div style="display:flex;background:#0d0f11;border:1px solid #1c1f24;border-radius:8px;overflow:hidden"><div style="width:4px;background:#212429;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Party Saturday</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#8b9099;background:#17191d;padding:2px 5px;border-radius:4px;flex:none">22</div></div>
+<div style="font:italic 400 11.5px/1.35 system-ui;color:#5a5f66;margin-top:7px">Empty list</div>
+<div style="font:400 10.5px system-ui;color:#5a5f66;margin-top:7px">4 months ago</div></div></div>
+<div style="display:flex;background:#0d0f11;border:1px solid #1c1f24;border-radius:8px;overflow:hidden"><div style="width:4px;background:transparent;flex:none"></div><div style="padding:10px 11px 11px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:6px"><div style="font:600 13.5px/1.25 system-ui;flex:1;min-width:0">Camping Trip</div><div style="font:600 9.5px ui-monospace,Menlo,monospace;color:#8b9099;background:#17191d;padding:2px 5px;border-radius:4px;flex:none">18</div></div>
+<div style="display:flex;flex-direction:column;gap:2px;font:400 11.5px/1.35 system-ui;color:#9aa0a8;margin-top:7px"><div>Firelighters</div><div>Marshmallows</div><div>Bug spray</div></div>
+<div style="font:400 10.5px system-ui;color:#5a5f66;margin-top:7px">Over a year ago</div></div></div>
+</div>
+<div style="position:relative;height:0"><div style="position:absolute;right:16px;bottom:16px;width:52px;height:52px;border-radius:26px;background:#2563eb;color:#fff;display:grid;place-items:center;font:300 27px/1 system-ui">+</div></div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4c"><div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a>Spine decay scale — the rule behind <a class="dv-oid" href="#4a">4a</a>/<a class="dv-oid" href="#4b">4b</a></div>
+<div class="dv-card" style="width:330px;padding:16px">
+<div style="font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280;margin-bottom:10px">Light</div>
+<div style="display:flex;gap:6px;margin-bottom:6px">
+<div style="flex:1;height:34px;border-radius:4px;background:#2563eb"></div><div style="flex:1;height:34px;border-radius:4px;background:#4f78cf"></div><div style="flex:1;height:34px;border-radius:4px;background:#7c8794"></div><div style="flex:1;height:34px;border-radius:4px;background:#a8aeb6"></div><div style="flex:1;height:34px;border-radius:4px;background:#d9dce0"></div><div style="flex:1;height:34px;border-radius:4px;background:#f4f5f7;border:1px dashed rgba(0,0,0,.14)"></div>
+</div>
+<div style="display:flex;gap:6px;font:400 9px/1.25 ui-monospace,Menlo,monospace;color:#9aa0a8;margin-bottom:16px">
+<div style="flex:1">today</div><div style="flex:1">1 wk</div><div style="flex:1">1 mo</div><div style="flex:1">2 mo</div><div style="flex:1">4 mo</div><div style="flex:1">6 mo+</div>
+</div>
+<div style="font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280;margin-bottom:10px">OLED black</div>
+<div style="display:flex;gap:6px;background:#000;padding:8px;border-radius:6px;margin-bottom:6px">
+<div style="flex:1;height:34px;border-radius:4px;background:#4d8dff"></div><div style="flex:1;height:34px;border-radius:4px;background:#3f6bb8"></div><div style="flex:1;height:34px;border-radius:4px;background:#5c636c"></div><div style="flex:1;height:34px;border-radius:4px;background:#3c4149"></div><div style="flex:1;height:34px;border-radius:4px;background:#212429"></div><div style="flex:1;height:34px;border-radius:4px;background:#000;border:1px dashed #24282e"></div>
+</div>
+<div style="font:400 11.5px/1.5 system-ui;color:#5c6068;margin-top:12px">Chroma decays to zero at <strong>2 months</strong>, then lightness walks toward the tile background so the spine is gone by <strong>6 months</strong>. Any edit resets it to full saturation <em>and</em> moves the tile to position 1. Recency is therefore readable two ways at once: position and colour.</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4d"><div class="dv-olabel"><a class="dv-oid" href="#4d">4d</a>List screen · portrait light · scrolled — headers gone, grip column at left, FAB</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a;position:relative">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#6b7280;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px 0 6px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)">
+<div style="width:36px;height:40px;display:grid;place-items:center;font:300 24px/1 system-ui;color:#4b5058">‹</div>
+<div style="flex:1;min-width:0;font:600 17px/1.1 system-ui;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Weekly Groceries</div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;display:flex;min-height:0;padding:8px;gap:8px">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="height:20px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 12px 3px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#c3c8ce;opacity:.5"><span>My list</span><span style="font-family:ui-monospace,Menlo,monospace;letter-spacing:0">6</span></div>
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Eggs</div><div style="display:flex;align-items:center;padding-right:9px"><div style="font:600 11px ui-monospace,Menlo,monospace;color:#2563eb;background:#e8effd;padding:2px 5px;border-radius:4px">×2</div></div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Sourdough</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Bananas</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Chicken thighs, boneless</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Olive oil</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Parmesan, grated</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Tomatoes</div></div>
+</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="height:20px;flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:0 12px 3px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#c3c8ce;opacity:.5"><span>Catalog</span><span style="letter-spacing:0">A–Z</span></div>
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Apples</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#e2e5e9"></div><div style="width:12px;height:1.5px;background:#e2e5e9"></div><div style="width:12px;height:1.5px;background:#e2e5e9"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui;color:#a6abb2">Bananas</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Butter</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Carrots</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Cheddar, sharp</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#e2e5e9"></div><div style="width:12px;height:1.5px;background:#e2e5e9"></div><div style="width:12px;height:1.5px;background:#e2e5e9"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui;color:#a6abb2">Chicken thighs, boneless</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch"><div style="width:44px;flex:none;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Coffee beans</div></div>
+</div>
+</div>
+</div>
+<div style="position:absolute;right:14px;bottom:14px;width:52px;height:52px;border-radius:26px;background:#2563eb;color:#fff;display:grid;place-items:center;font:300 27px/1 system-ui;box-shadow:0 4px 14px rgba(37,99,235,.4)">+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4e"><div class="dv-olabel"><a class="dv-oid" href="#4e">4e</a>Landscape OLED · at the top of the scroll, headers still visible</div>
+<div class="dv-card" style="width:720px">
+<div style="height:360px;background:#000;display:flex;flex-direction:column;color:#e8eaed;position:relative">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:2px;padding:0 10px 0 6px;border-bottom:1px solid #1c1f24">
+<div style="width:36px;height:40px;display:grid;place-items:center;font:300 24px/1 system-ui;color:#9aa0a8">‹</div>
+<div style="flex:1;min-width:0;font:600 17px/1.1 system-ui">Weekly Groceries</div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #9aa0a8;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#9aa0a8;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;display:flex;min-height:0;padding:8px;gap:8px">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0b0c0e;border:1px solid #1c1f24;border-radius:9px;overflow:hidden">
+<div style="height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7078;border-bottom:1px solid #16181c"><span>My list</span><span style="font-family:ui-monospace,Menlo,monospace;letter-spacing:0">6 items</span></div>
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Milk</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Eggs</div><div style="display:flex;align-items:center;padding-right:10px"><div style="font:600 11px ui-monospace,Menlo,monospace;color:#4d8dff;background:#0d1b33;padding:2px 6px;border-radius:4px">×2</div></div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Sourdough</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Bananas</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Chicken thighs, boneless</div></div>
+</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#0b0c0e;border:1px solid #1c1f24;border-radius:9px;overflow:hidden">
+<div style="height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7078;border-bottom:1px solid #16181c"><span>This list's catalog</span><span style="letter-spacing:0">A–Z</span></div>
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Apples</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#0d0f11;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#22262b"></div><div style="width:12px;height:1.5px;background:#22262b"></div><div style="width:12px;height:1.5px;background:#22262b"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui;color:#54595f">Bananas</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Butter</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid #131619"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Carrots</div></div>
+<div style="min-height:44px;flex:none;display:flex;align-items:stretch"><div style="width:44px;flex:none;background:#101215;display:grid;place-items:center;border-right:1px solid #16181c"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div><div style="width:12px;height:1.5px;background:#3d4147"></div></div></div><div style="flex:1;min-width:0;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Cheddar, sharp</div></div>
+</div>
+</div>
+</div>
+<div style="position:absolute;right:14px;bottom:14px;width:48px;height:48px;border-radius:24px;background:#2563eb;color:#fff;display:grid;place-items:center;font:300 25px/1 system-ui">+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4f"><div class="dv-olabel"><a class="dv-oid" href="#4f">4f</a>Row density &amp; narrow-viewport rule</div>
+<div class="dv-card" style="width:400px;padding:14px;background:#f4f5f7">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div>
+<div style="font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;margin-bottom:5px">Row height — Settings › Item height</div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="padding:5px 9px;font:600 9px ui-monospace,Menlo,monospace;color:#9aa0a8;border-bottom:1px solid rgba(0,0,0,.05)">COMPACT 36</div>
+<div style="min-height:36px;display:flex;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:36px;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2px"><div style="width:10px;height:1.5px;background:#c3c8ce"></div><div style="width:10px;height:1.5px;background:#c3c8ce"></div><div style="width:10px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;display:flex;align-items:center;padding:4px 9px;font:400 13px/1.3 system-ui">Milk</div></div>
+<div style="min-height:36px;display:flex"><div style="width:36px;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2px"><div style="width:10px;height:1.5px;background:#c3c8ce"></div><div style="width:10px;height:1.5px;background:#c3c8ce"></div><div style="width:10px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;display:flex;align-items:center;padding:4px 9px;font:400 13px/1.3 system-ui">Chicken thighs, boneless</div></div>
+</div>
+<div style="flex:1;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="padding:5px 9px;font:600 9px ui-monospace,Menlo,monospace;color:#9aa0a8;border-bottom:1px solid rgba(0,0,0,.05)">DEFAULT 44</div>
+<div style="min-height:44px;display:flex;border-bottom:1px solid rgba(0,0,0,.05)"><div style="width:44px;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Milk</div></div>
+<div style="min-height:44px;display:flex"><div style="width:44px;display:grid;place-items:center"><div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div><div style="width:12px;height:1.5px;background:#c3c8ce"></div></div></div><div style="flex:1;display:flex;align-items:center;padding:6px 10px;font:400 14.5px/1.3 system-ui">Chicken thighs, boneless</div></div>
+</div>
+</div>
+<div style="font:400 11px/1.45 system-ui;color:#6b7280;margin-top:6px">Height is a floor, not a fixed value — long names wrap and the row grows. The drag zone always spans the full row height, so a two-line row is an easier target, not a harder one.</div>
+</div>
+<div>
+<div style="font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;margin-bottom:5px">Below ~320px total width — grips drop, whole row becomes the drag zone</div>
+<div style="width:190px;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="display:flex">
+<div style="flex:1;border-right:1px solid rgba(0,0,0,.07)">
+<div style="min-height:44px;display:flex;align-items:center;padding:6px 8px;font:400 13.5px/1.3 system-ui;border-bottom:1px solid rgba(0,0,0,.05)">Eggs ×2</div>
+<div style="min-height:44px;display:flex;align-items:center;padding:6px 8px;font:400 13.5px/1.3 system-ui;border-bottom:1px solid rgba(0,0,0,.05)">Chicken thighs, boneless</div>
+<div style="min-height:44px;display:flex;align-items:center;padding:6px 8px;font:400 13.5px/1.3 system-ui">Sourdough</div>
+</div>
+<div style="flex:1">
+<div style="min-height:44px;display:flex;align-items:center;padding:6px 8px;font:400 13.5px/1.3 system-ui;border-bottom:1px solid rgba(0,0,0,.05)">Apples</div>
+<div style="min-height:44px;display:flex;align-items:center;padding:6px 8px;font:400 13.5px/1.3 system-ui;color:#a6abb2;border-bottom:1px solid rgba(0,0,0,.05)">Bananas</div>
+<div style="min-height:44px;display:flex;align-items:center;padding:6px 8px;font:400 13.5px/1.3 system-ui">Butter</div>
+</div>
+</div>
+</div>
+<div style="font:400 11px/1.45 system-ui;color:#6b7280;margin-top:8px">Long-press then drag replaces grab-and-go at this width; a short vertical drag still scrolls.</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4g"><div class="dv-olabel"><a class="dv-oid" href="#4g">4g</a>Revised hamburger + undo/redo · dark</div>
+<div class="dv-card" style="width:344px">
+<div style="height:544px;background:#000;color:#e8eaed;display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid #1c1f24;font:600 15.5px system-ui;white-space:nowrap">Weekly Groceries</div>
+<div style="flex:1;padding:6px 0;display:flex;flex-direction:column">
+<div style="display:flex;gap:8px;padding:6px 12px 10px">
+<div style="flex:1;min-width:0;border:1px solid #24282e;border-radius:8px;padding:8px 10px"><div style="font:600 12.5px system-ui;color:#e8eaed">Undo</div><div style="font:400 10.5px/1.3 system-ui;color:#8b9099;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Added “Olive oil”</div></div>
+<div style="flex:1;min-width:0;border:1px solid #17191d;border-radius:8px;padding:8px 10px;opacity:.45"><div style="font:600 12.5px system-ui">Redo</div><div style="font:400 10.5px/1.3 system-ui;color:#8b9099;margin-top:2px;white-space:nowrap">Nothing to redo</div></div>
+</div>
+<div style="height:1px;background:#131619;margin:0 16px 6px"></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Sort left column A–Z</div>
+<div style="height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font:400 14.5px system-ui"><span style="min-width:0;white-space:nowrap">Show catalog items from other lists</span><div style="width:38px;height:22px;border-radius:11px;background:#24282e;position:relative;flex:none;margin-left:10px"><div style="position:absolute;width:18px;height:18px;border-radius:50%;background:#6b7078;top:2px;left:2px"></div></div></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Remove items from catalog…</div>
+<div style="height:1px;background:#131619;margin:6px 16px"></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Rename list</div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Copy list as text</div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Import / export data</div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Settings</div>
+<div style="height:1px;background:#131619;margin:6px 16px"></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap;color:#f36b6b">Delete this list</div>
+</div>
+<div style="height:36px;flex:none;display:flex;align-items:center;padding:0 16px;font:400 11px ui-monospace,Menlo,monospace;color:#4d5157;border-top:1px solid #131619">Shopping List · v1.4.0</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4h"><div class="dv-olabel"><a class="dv-oid" href="#4h">4h</a>Settings sheet · light — theme lives here now</div>
+<div class="dv-card" style="width:344px">
+<div style="height:520px;background:#f4f5f7;color:#14161a;display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)"><div style="width:28px;height:40px;display:grid;place-items:center;font:300 22px/1 system-ui;color:#4b5058">‹</div><div style="font:600 15.5px system-ui">Settings</div></div>
+<div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:12px">
+<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="padding:8px 12px 6px;font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8">Appearance</div>
+<div style="padding:0 12px 12px">
+<div style="display:flex;gap:6px">
+<div style="flex:1;height:34px;border-radius:7px;border:1.5px solid #2563eb;background:#e8effd;display:grid;place-items:center;font:600 12.5px system-ui;color:#2563eb">Light</div>
+<div style="flex:1;height:34px;border-radius:7px;border:1px solid rgba(0,0,0,.1);display:grid;place-items:center;font:500 12.5px system-ui;color:#5c6068">OLED black</div>
+<div style="flex:1;height:34px;border-radius:7px;border:1px solid rgba(0,0,0,.1);display:grid;place-items:center;font:500 12.5px system-ui;color:#5c6068">System</div>
+</div>
+</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="padding:8px 12px 6px;font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8">Item height</div>
+<div style="padding:0 12px 14px">
+<div style="display:flex;justify-content:space-between;font:400 12px system-ui;color:#5c6068;margin-bottom:8px"><span>Minimum row height</span><span style="font:600 12px ui-monospace,Menlo,monospace;color:#14161a">44 px</span></div>
+<div style="height:4px;background:#e4e6ea;border-radius:2px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:45%;background:#2563eb;border-radius:2px"></div><div style="position:absolute;left:45%;top:-8px;width:20px;height:20px;border-radius:10px;background:#fff;border:1px solid rgba(0,0,0,.14);box-shadow:0 1px 3px rgba(0,0,0,.18);margin-left:-10px"></div></div>
+<div style="display:flex;justify-content:space-between;font:400 9.5px ui-monospace,Menlo,monospace;color:#a6abb2;margin-top:7px"><span>32</span><span>60</span></div>
+</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="padding:8px 12px 6px;font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8">Behaviour</div>
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-top:1px solid rgba(0,0,0,.05)"><span style="font:400 14px system-ui">Show drag grips</span><div style="width:38px;height:22px;border-radius:11px;background:#2563eb;position:relative;flex:none"><div style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;right:2px"></div></div></div>
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-top:1px solid rgba(0,0,0,.05)"><span style="font:400 14px system-ui">Ask quantity on duplicate drag</span><div style="width:38px;height:22px;border-radius:11px;background:#2563eb;position:relative;flex:none"><div style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;right:2px"></div></div></div>
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-top:1px solid rgba(0,0,0,.05)"><span style="font:400 14px system-ui">Undo history</span><span style="font:400 13px ui-monospace,Menlo,monospace;color:#6b7280">50 steps</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="4i"><div class="dv-olabel"><a class="dv-oid" href="#4i">4i</a>New catalog item dialog (from the <span style="font-weight:600">+</span>) · light</div>
+<div class="dv-card" style="width:360px">
+<div style="height:300px;background:#f4f5f7;position:relative;display:flex;flex-direction:column;color:#14161a">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px 0 6px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)"><div style="width:30px;height:40px;display:grid;place-items:center;font:300 22px/1 system-ui;color:#4b5058">‹</div><div style="flex:1;font:600 15.5px/1.1 system-ui">Weekly Groceries</div></div>
+<div style="flex:1;display:flex;padding:8px;gap:8px;opacity:.4"><div style="flex:1;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px"></div><div style="flex:1;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px"></div></div>
+<div style="position:absolute;inset:0;background:rgba(20,22,26,.35);display:grid;place-items:center">
+<div style="width:280px;background:#fff;border-radius:12px;padding:18px 18px 14px;box-shadow:0 12px 32px rgba(0,0,0,.22)">
+<div style="font:600 15px/1.3 system-ui;margin-bottom:12px">Add to catalog</div>
+<div style="height:44px;border:1.5px solid #2563eb;border-radius:8px;display:flex;align-items:center;padding:0 11px;font:400 15px system-ui;margin-bottom:9px">Rye crackers<span style="display:inline-block;width:1.5px;height:19px;background:#2563eb;margin-left:1px"></span></div>
+<div style="display:flex;align-items:center;gap:8px;font:400 12px system-ui;color:#6b7280;margin-bottom:16px"><div style="width:17px;height:17px;border-radius:4px;background:#2563eb;display:grid;place-items:center;color:#fff;font:600 11px/1 system-ui">✓</div>Also add to my list now</div>
+<div style="display:flex;gap:8px;justify-content:flex-end">
+<div style="height:36px;padding:0 14px;display:grid;place-items:center;font:500 13.5px system-ui;color:#6b7280">Cancel</div>
+<div style="height:36px;padding:0 16px;display:grid;place-items:center;font:600 13.5px system-ui;background:#2563eb;color:#fff;border-radius:8px">Add</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build <a class="dv-oid" href="#4a">4a</a> + <a class="dv-oid" href="#4d">4d</a> as a working prototype with real drag" · "spine should also tint the tile background" · "show the undo toast instead of menu buttons"</p>
+</section>
+
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Top bar, drag feedback &amp; modes</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="3a"><div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Top bar — three states</div>
+<div class="dv-card" style="width:400px;padding:14px;background:#f4f5f7">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div>
+<div style="font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;margin-bottom:5px">Resting</div>
+<div style="height:52px;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;display:flex;align-items:center;gap:2px;padding:0 8px 0 6px">
+<div style="width:36px;height:40px;display:grid;place-items:center;font:300 24px/1 system-ui;color:#4b5058">‹</div>
+<div style="flex:1;min-width:0;font:600 17px/1.1 system-ui;color:#14161a">Weekly Groceries</div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+</div>
+<div>
+<div style="font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;margin-bottom:5px">Search expanded — title slides out, input takes the bar and focuses</div>
+<div style="height:52px;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 10px">
+<div style="width:13px;height:13px;border:2px solid #9aa0a8;border-radius:50%;position:relative;flex:none"><div style="position:absolute;width:2px;height:7px;background:#9aa0a8;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div>
+<div style="flex:1;font:400 16px/1.2 system-ui;color:#14161a;display:flex;align-items:center">chick<span style="display:inline-block;width:1.5px;height:19px;background:#2563eb;margin-left:1px"></span></div>
+<div style="width:18px;height:18px;border-radius:50%;background:#e4e6ea;display:grid;place-items:center;font:400 12px/1 system-ui;color:#6b7280;flex:none">×</div>
+</div>
+<div style="margin-top:6px;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="padding:7px 12px;font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;background:#fafbfc">In my list</div>
+<div style="padding:9px 12px;font:400 14px system-ui;border-top:1px solid rgba(0,0,0,.05)"><strong style="font-weight:600;background:#fdf0c2">Chick</strong>en thighs</div>
+<div style="padding:7px 12px;font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;background:#fafbfc;border-top:1px solid rgba(0,0,0,.05)">In catalog</div>
+<div style="padding:9px 12px;font:400 14px system-ui;border-top:1px solid rgba(0,0,0,.05);color:#5c6068"><strong style="font-weight:600;background:#fdf0c2">Chick</strong>peas</div>
+</div>
+</div>
+<div>
+<div style="font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8;margin-bottom:5px">Delete-items mode — the one place checkboxes appear</div>
+<div style="height:52px;background:#2563eb;border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;color:#fff">
+<div style="font:400 20px/1 system-ui">×</div>
+<div style="flex:1;font:600 15px/1.1 system-ui">3 selected</div>
+<div style="font:600 13px system-ui;padding:7px 12px;border:1px solid rgba(255,255,255,.4);border-radius:7px">Delete</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="3b"><div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Drag feedback — mid-drag, right→left</div>
+<div class="dv-card" style="width:400px">
+<div style="height:300px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a;position:relative">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px 0 6px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)"><div style="width:30px;height:40px;display:grid;place-items:center;font:300 22px/1 system-ui;color:#4b5058">‹</div><div style="flex:1;font:600 15.5px/1.1 system-ui">Weekly Groceries</div></div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#e8effd;border-right:2px solid #2563eb">
+<div style="height:26px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 10px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#2563eb"><span>Drop to add</span><span style="letter-spacing:0">↓</span></div>
+<div style="flex:1;padding:0 8px;display:flex;flex-direction:column;gap:4px">
+<div style="height:40px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px;font:400 14px system-ui">Milk</div>
+<div style="height:40px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px;font:400 14px system-ui">Eggs</div>
+<div style="height:40px;flex:none;border:1.5px dashed #2563eb;border-radius:7px;background:rgba(37,99,235,.07)"></div>
+<div style="height:40px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px;font:400 14px system-ui">Sourdough</div>
+</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="height:26px;flex:none;display:flex;align-items:center;padding:0 10px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280">Catalog</div>
+<div style="flex:1;padding:0 8px;display:flex;flex-direction:column;gap:4px">
+<div style="height:40px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14px system-ui;color:#3f434a">Apples</div>
+<div style="height:40px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14px system-ui;color:#3f434a">Butter</div>
+<div style="height:40px;flex:none;background:#e2e5e9;border-radius:7px;opacity:.5"></div>
+<div style="height:40px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14px system-ui;color:#3f434a">Cheddar</div>
+</div>
+</div>
+</div>
+<div style="position:absolute;left:150px;top:172px;width:130px;height:40px;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:7px;box-shadow:0 8px 20px rgba(0,0,0,.22),0 2px 4px rgba(0,0,0,.1);display:flex;align-items:center;padding:0 10px;font:500 14px system-ui;transform:rotate(-1.5deg)">Carrots</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="3c"><div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>Quantity prompt — dragging a duplicate over</div>
+<div class="dv-card" style="width:400px">
+<div style="height:300px;background:#000;color:#e8eaed;position:relative;display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px 0 6px;border-bottom:1px solid #1c1f24"><div style="width:30px;height:40px;display:grid;place-items:center;font:300 22px/1 system-ui;color:#9aa0a8">‹</div><div style="flex:1;font:600 15.5px/1.1 system-ui">Weekly Groceries</div></div>
+<div style="flex:1;display:flex;min-height:0;opacity:.35">
+<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:4px"><div style="height:40px;background:#101215;border-radius:7px"></div><div style="height:40px;background:#101215;border-radius:7px"></div><div style="height:40px;background:#101215;border-radius:7px"></div></div>
+<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:4px"><div style="height:40px;border:1px solid #1c1f24;border-radius:7px"></div><div style="height:40px;border:1px solid #1c1f24;border-radius:7px"></div><div style="height:40px;border:1px solid #1c1f24;border-radius:7px"></div></div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center">
+<div style="width:270px;background:#101215;border:1px solid #24282e;border-radius:12px;padding:18px 18px 14px">
+<div style="font:600 15px/1.3 system-ui;margin-bottom:3px">Eggs is already on the list</div>
+<div style="font:400 12.5px/1.45 system-ui;color:#8b9099;margin-bottom:14px">Set the quantity you want.</div>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+<div style="width:44px;height:44px;border:1px solid #2a2e35;border-radius:8px;display:grid;place-items:center;font:400 20px/1 system-ui;color:#c3c8ce">−</div>
+<div style="flex:1;height:44px;background:#000;border:1px solid #2f333a;border-radius:8px;display:grid;place-items:center;font:600 19px ui-monospace,Menlo,monospace">3</div>
+<div style="width:44px;height:44px;border:1px solid #2a2e35;border-radius:8px;display:grid;place-items:center;font:400 20px/1 system-ui;color:#c3c8ce">+</div>
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end">
+<div style="height:36px;padding:0 14px;display:grid;place-items:center;font:500 13.5px system-ui;color:#8b9099">Cancel</div>
+<div style="height:36px;padding:0 16px;display:grid;place-items:center;font:600 13.5px system-ui;background:#2563eb;color:#fff;border-radius:8px">Set</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="3d"><div class="dv-olabel"><a class="dv-oid" href="#3d">3d</a>Hamburger sheet — list page, dark</div>
+<div class="dv-card" style="width:344px">
+<div style="height:580px;background:#000;color:#e8eaed;display:flex;flex-direction:column">
+<div style="height:44px;flex:none;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid #1c1f24;font:600 15.5px system-ui">Weekly Groceries</div>
+<div style="flex:1;padding:6px 0;display:flex;flex-direction:column">
+<div style="height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap"><span style="min-width:0;white-space:nowrap">Dark theme</span><div style="width:38px;height:22px;border-radius:11px;background:#2563eb;position:relative"><div style="position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:2px;right:2px"></div></div></div>
+<div style="height:1px;background:#131619;margin:6px 16px"></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Sort list A–Z</div>
+<div style="height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap"><span style="min-width:0;white-space:nowrap">Show items from other lists</span><div style="width:38px;height:22px;border-radius:11px;background:#24282e;position:relative;flex:none;margin-left:10px"><div style="position:absolute;width:18px;height:18px;border-radius:50%;background:#6b7078;top:2px;left:2px"></div></div></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Manage catalog</div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Delete catalog items…</div>
+<div style="height:1px;background:#131619;margin:6px 16px"></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Copy list as text</div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Import / export data</div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap">Settings</div>
+<div style="height:1px;background:#131619;margin:6px 16px"></div>
+<div style="height:42px;display:flex;align-items:center;padding:0 16px;font:400 14.5px system-ui;white-space:nowrap;color:#f36b6b">Delete this list</div>
+</div>
+<div style="height:36px;flex:none;display:flex;align-items:center;padding:0 16px;font:400 11px ui-monospace,Menlo,monospace;color:#4d5157;border-top:1px solid #131619">Shopping List · v1.4.0</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build <a class="dv-oid" href="#2b">2b</a> + <a class="dv-oid" href="#1a">1a</a> as a working prototype" · "search should filter in place, not dropdown" · "more drag states"</p>
+</section>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Shopping list screen — two columns</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Portrait · light · gutter divider</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#6b7280;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:2px;padding:0 8px 0 6px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)">
+<div style="width:36px;height:40px;display:grid;place-items:center;font:300 24px/1 system-ui;color:#4b5058">‹</div>
+<div style="flex:1;min-width:0;font:600 17px/1.1 system-ui;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Weekly Groceries</div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="height:28px;flex:none;display:flex;align-items:center;padding:0 10px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280">My list · 6</div>
+<div style="flex:1;overflow:hidden;padding:0 6px 0 8px;display:flex;flex-direction:column;gap:5px">
+<div style="height:44px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Milk</div></div>
+<div style="height:44px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Eggs</div><div style="font:600 11px ui-monospace,Menlo,monospace;color:#2563eb;background:#e8effd;padding:2px 5px;border-radius:4px;flex:none">×2</div></div>
+<div style="height:44px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Sourdough</div></div>
+<div style="height:44px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Bananas</div></div>
+<div style="height:44px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Chicken thighs</div></div>
+<div style="height:44px;flex:none;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 9px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Olive oil</div></div>
+</div>
+</div>
+<div style="width:1px;background:rgba(0,0,0,.09);flex:none;margin:6px 0"></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="height:28px;flex:none;display:flex;align-items:center;padding:0 10px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280">Catalog · A–Z</div>
+<div style="flex:1;overflow:hidden;padding:0 8px 0 6px;display:flex;flex-direction:column;gap:5px">
+<div style="height:44px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14.5px/1.2 system-ui;color:#3f434a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Apples</div>
+<div style="height:44px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14.5px/1.2 system-ui;color:#9aa0a8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Bananas</div>
+<div style="height:44px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14.5px/1.2 system-ui;color:#3f434a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Butter</div>
+<div style="height:44px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14.5px/1.2 system-ui;color:#3f434a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Carrots</div>
+<div style="height:44px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14.5px/1.2 system-ui;color:#3f434a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Cheddar</div>
+<div style="height:44px;flex:none;background:#eceef1;border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 14.5px/1.2 system-ui;color:#9aa0a8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Chicken thighs</div>
+</div>
+</div>
+</div>
+<div style="height:52px;flex:none;background:#fff;border-top:1px solid rgba(0,0,0,.09);display:flex;align-items:center;padding:0 10px;gap:8px">
+<div style="flex:1;height:34px;background:#f0f1f4;border:1px solid rgba(0,0,0,.07);border-radius:7px;display:flex;align-items:center;padding:0 10px;font:400 13px system-ui;color:#9aa0a8">Add item to catalog…</div>
+<div style="width:34px;height:34px;border-radius:7px;background:#2563eb;color:#fff;display:grid;place-items:center;font:400 19px/1 system-ui">+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Landscape · OLED black · the optimal shape</div>
+<div class="dv-card" style="width:720px">
+<div style="height:360px;background:#000;display:flex;flex-direction:column;color:#e8eaed">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:2px;padding:0 10px 0 6px;border-bottom:1px solid #1c1f24">
+<div style="width:36px;height:40px;display:grid;place-items:center;font:300 24px/1 system-ui;color:#9aa0a8">‹</div>
+<div style="flex:1;min-width:0;font:600 17px/1.1 system-ui">Weekly Groceries</div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #9aa0a8;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#9aa0a8;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="height:26px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7078"><span>My list</span><span style="font-family:ui-monospace,Menlo,monospace;letter-spacing:0">6</span></div>
+<div style="flex:1;overflow:hidden;padding:0 8px 0 10px;display:flex;flex-direction:column;gap:4px">
+<div style="height:42px;flex:none;background:#101215;border-radius:7px;display:flex;align-items:center;gap:9px;padding:0 11px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Milk</div></div>
+<div style="height:42px;flex:none;background:#101215;border-radius:7px;display:flex;align-items:center;gap:9px;padding:0 11px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Eggs</div><div style="font:600 11px ui-monospace,Menlo,monospace;color:#4d8dff;background:#0d1b33;padding:2px 6px;border-radius:4px">×2</div></div>
+<div style="height:42px;flex:none;background:#101215;border-radius:7px;display:flex;align-items:center;gap:9px;padding:0 11px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Sourdough</div></div>
+<div style="height:42px;flex:none;background:#101215;border-radius:7px;display:flex;align-items:center;gap:9px;padding:0 11px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Bananas</div></div>
+<div style="height:42px;flex:none;background:#101215;border-radius:7px;display:flex;align-items:center;gap:9px;padding:0 11px"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div><div style="width:11px;height:1.5px;background:#3d4147"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Chicken thighs</div></div>
+</div>
+</div>
+<div style="width:1px;background:#1c1f24;flex:none;margin:4px 0"></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="height:26px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7078"><span>Catalog</span><span style="letter-spacing:0">A–Z</span></div>
+<div style="flex:1;overflow:hidden;padding:0 10px 0 8px;display:flex;flex-direction:column;gap:4px">
+<div style="height:42px;flex:none;border:1px solid #1c1f24;border-radius:7px;display:flex;align-items:center;padding:0 11px;font:400 14.5px/1.2 system-ui;color:#c3c8ce">Apples</div>
+<div style="height:42px;flex:none;border:1px solid #1c1f24;border-radius:7px;display:flex;align-items:center;padding:0 11px;font:400 14.5px/1.2 system-ui;color:#54595f">Bananas</div>
+<div style="height:42px;flex:none;border:1px solid #1c1f24;border-radius:7px;display:flex;align-items:center;padding:0 11px;font:400 14.5px/1.2 system-ui;color:#c3c8ce">Butter</div>
+<div style="height:42px;flex:none;border:1px solid #1c1f24;border-radius:7px;display:flex;align-items:center;padding:0 11px;font:400 14.5px/1.2 system-ui;color:#c3c8ce">Carrots</div>
+<div style="height:42px;flex:none;border:1px solid #1c1f24;border-radius:7px;display:flex;align-items:center;padding:0 11px;font:400 14.5px/1.2 system-ui;color:#c3c8ce">Cheddar</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Landscape · light · "other lists" section in catalog</div>
+<div class="dv-card" style="width:720px">
+<div style="height:360px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a">
+<div style="height:48px;flex:none;display:flex;align-items:center;gap:2px;padding:0 10px 0 6px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)">
+<div style="width:36px;height:40px;display:grid;place-items:center;font:300 24px/1 system-ui;color:#4b5058">‹</div>
+<div style="flex:1;min-width:0;font:600 17px/1.1 system-ui">Weekly Groceries</div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;display:flex;min-height:0;padding:8px;gap:8px">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280;border-bottom:1px solid rgba(0,0,0,.06)"><span>My list</span><span style="font-family:ui-monospace,Menlo,monospace;letter-spacing:0">6 items</span></div>
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+<div style="height:43px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid rgba(0,0,0,.05)"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Milk</div></div>
+<div style="height:43px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid rgba(0,0,0,.05)"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Eggs</div><div style="font:600 11px ui-monospace,Menlo,monospace;color:#2563eb;background:#e8effd;padding:2px 6px;border-radius:4px">×2</div></div>
+<div style="height:43px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid rgba(0,0,0,.05)"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Sourdough</div></div>
+<div style="height:43px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid rgba(0,0,0,.05)"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Bananas</div></div>
+<div style="height:43px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid rgba(0,0,0,.05)"><div style="display:flex;flex-direction:column;gap:2.5px;flex:none"><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div><div style="width:11px;height:1.5px;background:#c3c8ce"></div></div><div style="font:400 14.5px/1.2 system-ui;flex:1">Chicken thighs</div></div>
+</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:9px;overflow:hidden">
+<div style="height:28px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#6b7280;border-bottom:1px solid rgba(0,0,0,.06)"><span>This list's catalog</span><span style="letter-spacing:0">A–Z</span></div>
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+<div style="height:39px;flex:none;display:flex;align-items:center;padding:0 12px;font:400 14.5px/1.2 system-ui;border-bottom:1px solid rgba(0,0,0,.05)">Apples</div>
+<div style="height:39px;flex:none;display:flex;align-items:center;padding:0 12px;font:400 14.5px/1.2 system-ui;color:#a6abb2;border-bottom:1px solid rgba(0,0,0,.05)">Bananas</div>
+<div style="height:39px;flex:none;display:flex;align-items:center;padding:0 12px;font:400 14.5px/1.2 system-ui;border-bottom:1px solid rgba(0,0,0,.05)">Butter</div>
+<div style="height:39px;flex:none;display:flex;align-items:center;padding:0 12px;font:400 14.5px/1.2 system-ui;border-bottom:1px solid rgba(0,0,0,.05)">Carrots</div>
+<div style="height:26px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;background:#f4f5f7;border-top:1px solid rgba(0,0,0,.06);border-bottom:1px solid rgba(0,0,0,.06);font:600 9.5px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#9aa0a8">From other lists</div>
+<div style="height:39px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;font:400 14.5px/1.2 system-ui;color:#5c6068;border-bottom:1px solid rgba(0,0,0,.05)">Batteries AA <span style="font:400 10px ui-monospace,Menlo,monospace;color:#a6abb2">Costco Run</span></div>
+<div style="height:39px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;font:400 14.5px/1.2 system-ui;color:#5c6068">Bug spray <span style="font:400 10px ui-monospace,Menlo,monospace;color:#a6abb2">Camping Trip</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "cards like <a class="dv-oid" href="#2c">2c</a> but black like <a class="dv-oid" href="#2b">2b</a>" · "rows are too tall in portrait" · "show me the quantity prompt bigger"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Homepage — list tiles</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Keep-style grid · light · two-up</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#6b7280;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 16px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)">
+<div style="flex:1;min-width:0"><div style="font:600 17px/1.1 system-ui">Shopping List</div><div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#9aa0a8;margin-top:2px">v1.4.0</div></div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;overflow:hidden;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start">
+<div style="background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:11px 12px 12px">
+<div style="font:600 13.5px/1.25 system-ui;margin-bottom:7px">Weekly Groceries</div>
+<div style="display:flex;flex-direction:column;gap:3px;font:400 11.5px/1.35 system-ui;color:#5c6068">
+<div>Milk</div><div>Eggs ×2</div><div>Sourdough</div><div>Bananas</div><div>Chicken thighs</div><div>Olive oil</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:8px">+8 more</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:11px 12px 12px">
+<div style="font:600 13.5px/1.25 system-ui;margin-bottom:7px">Hardware Store</div>
+<div style="display:flex;flex-direction:column;gap:3px;font:400 11.5px/1.35 system-ui;color:#5c6068">
+<div>M6 bolts ×12</div><div>Wood glue</div><div>Sandpaper 120</div><div>Hinges ×4</div></div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:11px 12px 12px">
+<div style="font:600 13.5px/1.25 system-ui;margin-bottom:7px">Party Saturday</div>
+<div style="font:400 11.5px/1.35 system-ui;color:#a6abb2;font-style:italic">Empty list</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:11px 12px 12px">
+<div style="font:600 13.5px/1.25 system-ui;margin-bottom:7px">Pharmacy</div>
+<div style="display:flex;flex-direction:column;gap:3px;font:400 11.5px/1.35 system-ui;color:#5c6068">
+<div>Ibuprofen</div><div>Plasters</div><div>Toothpaste</div></div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:11px 12px 12px">
+<div style="font:600 13.5px/1.25 system-ui;margin-bottom:7px">Costco Run</div>
+<div style="display:flex;flex-direction:column;gap:3px;font:400 11.5px/1.35 system-ui;color:#5c6068">
+<div>Paper towels</div><div>Rotisserie chicken</div><div>Coffee beans ×2</div><div>Batteries AA</div><div>Frozen berries</div><div>Almonds</div></div>
+<div style="font:400 10.5px system-ui;color:#9aa0a8;margin-top:8px">+3 more</div>
+</div>
+<div style="background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;padding:11px 12px 12px">
+<div style="font:600 13.5px/1.25 system-ui;margin-bottom:7px">Camping Trip</div>
+<div style="display:flex;flex-direction:column;gap:3px;font:400 11.5px/1.35 system-ui;color:#5c6068">
+<div>Firelighters</div><div>Marshmallows</div><div>Bug spray</div></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Full-width rows · OLED black · preview inline</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#000;display:flex;flex-direction:column;color:#e8eaed">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#7d838c;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 16px;background:#000;border-bottom:1px solid #1c1f24">
+<div style="flex:1;min-width:0"><div style="font:600 17px/1.1 system-ui">Shopping List</div><div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#6b7078;margin-top:2px">v1.4.0</div></div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #9aa0a8;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#9aa0a8;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div><div style="width:16px;height:2px;background:#9aa0a8;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+<div style="padding:14px 16px 15px;border-bottom:1px solid #131619">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 15px/1.2 system-ui;flex:1">Weekly Groceries</div><div style="font:400 11px ui-monospace,Menlo,monospace;color:#6b7078">14</div></div>
+<div style="font:400 12.5px/1.5 system-ui;color:#8b9099;margin-top:5px">Milk · Eggs ×2 · Sourdough · Bananas · Chicken thighs · Olive oil <span style="color:#5a5f66">+8</span></div>
+</div>
+<div style="padding:14px 16px 15px;border-bottom:1px solid #131619">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 15px/1.2 system-ui;flex:1">Hardware Store</div><div style="font:400 11px ui-monospace,Menlo,monospace;color:#6b7078">4</div></div>
+<div style="font:400 12.5px/1.5 system-ui;color:#8b9099;margin-top:5px">M6 bolts ×12 · Wood glue · Sandpaper 120 · Hinges ×4</div>
+</div>
+<div style="padding:14px 16px 15px;border-bottom:1px solid #131619">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 15px/1.2 system-ui;flex:1">Party Saturday</div><div style="font:400 11px ui-monospace,Menlo,monospace;color:#3d4147">0</div></div>
+<div style="font:italic 400 12.5px/1.5 system-ui;color:#5a5f66;margin-top:5px">Empty list</div>
+</div>
+<div style="padding:14px 16px 15px;border-bottom:1px solid #131619">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 15px/1.2 system-ui;flex:1">Pharmacy</div><div style="font:400 11px ui-monospace,Menlo,monospace;color:#6b7078">3</div></div>
+<div style="font:400 12.5px/1.5 system-ui;color:#8b9099;margin-top:5px">Ibuprofen · Plasters · Toothpaste</div>
+</div>
+<div style="padding:14px 16px 15px;border-bottom:1px solid #131619">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 15px/1.2 system-ui;flex:1">Costco Run</div><div style="font:400 11px ui-monospace,Menlo,monospace;color:#6b7078">9</div></div>
+<div style="font:400 12.5px/1.5 system-ui;color:#8b9099;margin-top:5px">Paper towels · Rotisserie chicken · Coffee beans ×2 · Batteries AA · Frozen berries · Almonds <span style="color:#5a5f66">+3</span></div>
+</div>
+<div style="padding:14px 16px 15px;border-bottom:1px solid #131619">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 15px/1.2 system-ui;flex:1">Camping Trip</div><div style="font:400 11px ui-monospace,Menlo,monospace;color:#6b7078">3</div></div>
+<div style="font:400 12.5px/1.5 system-ui;color:#8b9099;margin-top:5px">Firelighters · Marshmallows · Bug spray</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Indexed tiles · numbered rail, accent spine</div>
+<div class="dv-card" style="width:360px">
+<div style="height:640px;background:#f4f5f7;display:flex;flex-direction:column;color:#14161a">
+<div style="height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font:600 11px system-ui;color:#6b7280;flex:none"><span>9:41</span><span>LTE ▮</span></div>
+<div style="height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 16px;background:#fff;border-bottom:1px solid rgba(0,0,0,.09)">
+<div style="flex:1;min-width:0"><div style="font:600 17px/1.1 system-ui">Shopping List</div><div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#9aa0a8;margin-top:2px">v1.4.0</div></div>
+<div style="width:40px;height:40px;display:grid;place-items:center"><div style="width:13px;height:13px;border:2px solid #4b5058;border-radius:50%;position:relative"><div style="position:absolute;width:2px;height:7px;background:#4b5058;right:-3px;bottom:-6px;transform:rotate(-45deg);border-radius:1px"></div></div></div>
+<div style="width:40px;height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px"><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div><div style="width:16px;height:2px;background:#4b5058;border-radius:1px"></div></div>
+</div>
+<div style="flex:1;overflow:hidden;padding:12px;display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="width:5px;background:#2563eb;flex:none"></div>
+<div style="padding:11px 13px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 14px/1.2 system-ui;flex:1">Weekly Groceries</div><div style="font:600 10px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 6px;border-radius:4px">14</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 14px;font:400 11.5px/1.55 system-ui;color:#5c6068;margin-top:6px">
+<div>Milk</div><div>Chicken thighs</div><div>Eggs ×2</div><div>Olive oil</div><div>Sourdough</div><div style="color:#9aa0a8">+8 more</div><div>Bananas</div><div></div></div>
+</div>
+</div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="width:5px;background:#7c8794;flex:none"></div>
+<div style="padding:11px 13px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 14px/1.2 system-ui;flex:1">Hardware Store</div><div style="font:600 10px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 6px;border-radius:4px">4</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 14px;font:400 11.5px/1.55 system-ui;color:#5c6068;margin-top:6px">
+<div>M6 bolts ×12</div><div>Sandpaper 120</div><div>Wood glue</div><div>Hinges ×4</div></div>
+</div>
+</div>
+<div style="display:flex;background:#fff;border:1px dashed rgba(0,0,0,.14);border-radius:8px;overflow:hidden">
+<div style="width:5px;background:#d6dae0;flex:none"></div>
+<div style="padding:11px 13px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 14px/1.2 system-ui;flex:1">Party Saturday</div><div style="font:600 10px ui-monospace,Menlo,monospace;color:#a6abb2;background:#f2f3f5;padding:2px 6px;border-radius:4px">0</div></div>
+<div style="font:italic 400 11.5px/1.55 system-ui;color:#a6abb2;margin-top:6px">Empty list — 22 items in its catalog</div>
+</div>
+</div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="width:5px;background:#7c8794;flex:none"></div>
+<div style="padding:11px 13px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 14px/1.2 system-ui;flex:1">Pharmacy</div><div style="font:600 10px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 6px;border-radius:4px">3</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 14px;font:400 11.5px/1.55 system-ui;color:#5c6068;margin-top:6px">
+<div>Ibuprofen</div><div>Toothpaste</div><div>Plasters</div></div>
+</div>
+</div>
+<div style="display:flex;background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:8px;overflow:hidden">
+<div style="width:5px;background:#7c8794;flex:none"></div>
+<div style="padding:11px 13px;flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;gap:8px"><div style="font:600 14px/1.2 system-ui;flex:1">Costco Run</div><div style="font:600 10px ui-monospace,Menlo,monospace;color:#6b7280;background:#eef0f3;padding:2px 6px;border-radius:4px">9</div></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 14px;font:400 11.5px/1.55 system-ui;color:#5c6068;margin-top:6px">
+<div>Paper towels</div><div>Batteries AA</div><div>Rotisserie chicken</div><div>Frozen berries</div><div>Coffee beans ×2</div><div style="color:#9aa0a8">+3 more</div></div>
+</div>
+</div>
+<div style="height:44px;border:1px dashed rgba(0,0,0,.16);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:7px;font:500 13px system-ui;color:#6b7280"><span style="font-size:16px;line-height:1">+</span> New list</div>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "go with <a class="dv-oid" href="#1a">1a</a> but the tiles from <a class="dv-oid" href="#1c">1c</a>" · "make <a class="dv-oid" href="#1b">1b</a> light too" · "tiles are too tall for landscape"</p>
+</section>
+
+
+
+</x-dc>
+</body>
+</html>

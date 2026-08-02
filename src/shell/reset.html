@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shopping List — Reset</title>
+    <!--
+      TIER-3 ESCAPE HATCH.
+
+      The service worker returns early for this path and never intercepts it, so this page
+      is reachable even when a corrupt cached index.html has made the app itself
+      unopenable. That is also its limitation: it comes from the network, so it needs a
+      connection. The inline rescue screen in index.html handles the offline cases.
+
+      Fully self-contained on purpose. No scripts, styles, or fonts are fetched.
+    -->
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 24px 18px 40px;
+      background: #fff;
+      color: #000;
+      font: 400 15px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    "
+  >
+    <div style="max-width: 620px; margin: 0 auto">
+      <h1 style="font-size: 21px; margin: 0 0 10px">Shopping List — Reset</h1>
+      <p style="margin: 0 0 22px; color: #333">
+        Use this page only if the app will not open at all. Export your lists first —
+        clearing the app does not delete them, but exporting costs nothing.
+      </p>
+
+      <button id="export" type="button" style="display:block;width:100%;min-height:52px;padding:14px 16px;margin:0 0 8px;font:600 15px inherit;text-align:left;color:#000;background:#fff;border:1.5px solid #767676;border-radius:8px;cursor:pointer">
+        Export my lists
+      </button>
+      <div id="export-out" style="margin: 0 0 20px; font-size: 12.5px"></div>
+
+      <button id="reset" type="button" style="display:block;width:100%;min-height:52px;padding:14px 16px;margin:0 0 8px;font:600 15px inherit;text-align:left;color:#b3261e;background:#fff;border:1.5px solid #b3261e;border-radius:8px;cursor:pointer">
+        Clear the app, keep my lists
+      </button>
+      <div id="reset-out" style="margin: 0 0 20px; font-size: 12.5px"></div>
+
+      <p style="margin: 0; font-size: 13px; color: #555">
+        After clearing, <a id="home" href="./" style="color: #0b57d0">open Shopping List</a>
+        to download a fresh copy.
+      </p>
+    </div>
+
+    <script>
+      ;(function () {
+        'use strict'
+
+        var DATA_DB = 'slp-data'
+        var DATA_STORE = 'kv'
+        var DATA_KEY = 'doc'
+
+        function say(id, ok, message) {
+          var n = document.getElementById(id)
+          n.style.color = ok ? '#146c2e' : '#b3261e'
+          n.textContent = (ok ? '✓ ' : '✗ ') + message
+        }
+
+        document.getElementById('export').addEventListener('click', function () {
+          try {
+            if (!('indexedDB' in window)) throw new Error('No IndexedDB in this browser.')
+            var req = indexedDB.open(DATA_DB)
+            req.onerror = function () {
+              say('export-out', false, 'Could not open the data store.')
+            }
+            req.onupgradeneeded = function () {
+              try {
+                req.transaction.abort()
+              } catch (e) {}
+              say('export-out', false, 'No saved data found on this device.')
+            }
+            req.onsuccess = function () {
+              var db = req.result
+              if (!db.objectStoreNames.contains(DATA_STORE)) {
+                db.close()
+                say('export-out', false, 'No saved data found on this device.')
+                return
+              }
+              var g = db.transaction(DATA_STORE, 'readonly').objectStore(DATA_STORE).get(DATA_KEY)
+              g.onsuccess = function () {
+                db.close()
+                if (g.result == null) {
+                  say('export-out', false, 'No saved data found on this device.')
+                  return
+                }
+                var json = JSON.stringify(g.result, null, 1)
+                var area = document.createElement('textarea')
+                area.readOnly = true
+                area.value = json
+                area.style.cssText =
+                  'display:block;width:100%;height:150px;margin-top:8px;font:400 11.5px ui-monospace,Menlo,Consolas,monospace;padding:8px;border:1px solid #767676;border-radius:6px;box-sizing:border-box'
+                var out = document.getElementById('export-out')
+                out.textContent = ''
+                say('export-out', true, 'Exported ' + ((g.result.lists || []).length) + ' list(s).')
+                out.appendChild(area)
+                try {
+                  var a = document.createElement('a')
+                  a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+                  a.download = 'shopping-list-backup.json'
+                  a.textContent = 'Save as a file'
+                  a.style.cssText =
+                    'display:inline-block;margin-top:8px;font-weight:600;color:#0b57d0'
+                  out.appendChild(a)
+                } catch (e) {}
+              }
+              g.onerror = function () {
+                db.close()
+                say('export-out', false, 'Could not read saved data.')
+              }
+            }
+          } catch (err) {
+            say('export-out', false, String((err && err.message) || err))
+          }
+        })
+
+        document.getElementById('reset').addEventListener('click', function () {
+          var steps = []
+          // Each step is independent: one failing must not prevent the others.
+          var p = Promise.resolve()
+
+          p = p
+            .then(function () {
+              if (!('caches' in window)) return
+              return caches.keys().then(function (names) {
+                var mine = names.filter(function (n) {
+                  return n.indexOf('slp.') === 0
+                })
+                return Promise.all(
+                  mine.map(function (n) {
+                    return caches.delete(n)
+                  }),
+                ).then(function () {
+                  steps.push(mine.length + ' cache(s) cleared')
+                })
+              })
+            })
+            .catch(function (e) {
+              steps.push('cache clear failed: ' + e)
+            })
+
+          p = p
+            .then(function () {
+              var n = 0
+              for (var i = localStorage.length - 1; i >= 0; i--) {
+                var k = localStorage.key(i)
+                if (k && k.indexOf('slp.boot.') === 0) {
+                  localStorage.removeItem(k)
+                  n++
+                }
+              }
+              steps.push(n + ' setting(s) reset')
+            })
+            .catch(function (e) {
+              steps.push('settings reset failed: ' + e)
+            })
+
+          p = p
+            .then(function () {
+              if (!('serviceWorker' in navigator)) return
+              return navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(
+                  regs.map(function (r) {
+                    return r.unregister()
+                  }),
+                ).then(function () {
+                  steps.push(regs.length + ' worker(s) removed')
+                })
+              })
+            })
+            .catch(function (e) {
+              steps.push('worker removal failed: ' + e)
+            })
+
+          p.then(function () {
+            say('reset-out', true, steps.join(' · ') + '. Your lists were not touched.')
+          })
+        })
+      })()
+    </script>
+  </body>
+</html>

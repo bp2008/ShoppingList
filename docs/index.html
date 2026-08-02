@@ -1,0 +1,1481 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="Offline shopping list." />
+    <title>Shopping List</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+    <!--
+      ========================================================================
+      THIS FILE IS THE BOOTLOADER, NOT THE APP.
+      ========================================================================
+
+      Assembled by scripts/build-shell.mjs from src/shell/. It is precached by the service
+      worker and served for every navigation without touching the network, so it is what
+      users actually load. The application lives in releases/<buildId>/ and is injected by
+      the bootloader script at the end of <body>.
+
+      It is intended to be near-frozen. Editing it changes SHELL_VERSION, which makes
+      every device install a new service worker -- the one component whose stability the
+      whole recovery design rests on. Change it only when the boot or rescue behaviour
+      genuinely needs to change, never to ship an app feature.
+    -->
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #f4f5f7;
+        color: #14161a;
+        font:
+          400 15px/1.45 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Helvetica,
+          Arial,
+          sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #000;
+          color: #e8eaed;
+        }
+      }
+      #slp-boot[hidden] {
+        display: none;
+      }
+      #slp-boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 24px;
+        text-align: center;
+      }
+      .slp-boot-title {
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .slp-boot-detail {
+        font-size: 13px;
+        opacity: 0.7;
+      }
+      .slp-boot-action {
+        margin-top: 10px;
+        min-height: 46px;
+        padding: 12px 22px;
+        font: inherit;
+        font-weight: 600;
+        font-size: 15px;
+        color: #fff;
+        background: #2563eb;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+    </style>
+
+    <!--
+      PRELUDE. Must be the first script in the document.
+
+      Its only job is to be already running before anything that can fail. Separate
+      <script> elements are separate compilation units, so a syntax error anywhere below
+      -- including in a broken application bundle -- cannot prevent these handlers from
+      firing. Errors raised before the bootloader is ready are queued rather than dropped.
+    -->
+    <script>
+      window.__slp = { errors: [], pending: [], boot: null, rescue: null, onError: null }
+      ;(function () {
+        function capture(reason, error) {
+          var s = window.__slp
+          if (s.onError) {
+            try {
+              s.onError(reason, error)
+              return
+            } catch (e) {
+              /* fall through to the queue */
+            }
+          }
+          s.pending.push({ reason: reason, error: error })
+        }
+        window.addEventListener('error', function (e) {
+          capture('uncaught', (e && e.error) || (e && e.message))
+        })
+        window.addEventListener('unhandledrejection', function (e) {
+          capture('rejection', e && e.reason)
+        })
+      })()
+    </script>
+  </head>
+
+  <body>
+    <noscript>Shopping List needs JavaScript.</noscript>
+
+    <!-- Boot progress and first-run messaging. Hidden unless the bootloader needs it. -->
+    <div id="slp-boot" hidden></div>
+
+    <!-- The application mounts here. -->
+    <div id="app"></div>
+
+    <!--
+      Rescue first, so it is guaranteed to exist by the time the bootloader can need it,
+      then the bootloader. Both run at the end of <body> because they touch the DOM.
+    -->
+    <script>
+      /*
+ * Shopping List rescue screen.
+ *
+ * Inlined into docs/index.html and parsed before any application code runs. It is never
+ * fetched on demand, because the situations it exists for are exactly the situations in
+ * which fetching does not work.
+ *
+ * Rules this file follows, all of them load-bearing:
+ *
+ *   - No dependencies, no imports, no build-time magic. Plain ES2020.
+ *   - Every action is wrapped in its own try/catch and reports its own outcome inline.
+ *     There is no shared failure path, so one broken capability cannot take the screen
+ *     down with it.
+ *   - Every optional API is feature-detected before use. Private browsing and locked-down
+ *     webviews must degrade to a disabled button, never an exception.
+ *   - Styling is inline only. The screen empties <body> and removes every stylesheet in
+ *     the document first, so there is nothing left that could restyle it, cover it, or
+ *     lay out on top of it.
+ *   - It never touches application data except to read it for export. Destructive actions
+ *     are opt-in and clearly labelled.
+ *
+ * It is deliberately plain. It does not need to be pretty; it needs to work.
+ */
+;(function () {
+  'use strict'
+
+  var slp = window.__slp
+
+  // The application data store. Rescue reads it with raw IndexedDB rather than the app's
+  // idb-keyval wrapper, so a broken bundle cannot prevent an export.
+  // Contract shared with src/app/core/persist.ts -- keep in sync.
+  var DATA_DB = 'slp-data'
+  var DATA_STORE = 'kv'
+  var DATA_KEY = 'doc'
+
+  var boot = null
+  var root = null
+
+  /* ------------------------------------------------------------------ helpers */
+
+  function css(node, styles) {
+    for (var k in styles) node.style[k] = styles[k]
+    return node
+  }
+
+  function el(tag, styles, text) {
+    var n = document.createElement(tag)
+    if (styles) css(n, styles)
+    if (text != null) n.textContent = text
+    return n
+  }
+
+  var FONT =
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+  var MONO = 'ui-monospace, Menlo, Consolas, monospace'
+
+  /**
+   * Remove everything that could interfere, rather than layering over it.
+   *
+   * Covering the app with a high z-index is not enough: app CSS can restyle anything it
+   * can select, an app overlay can sit above any fixed value, and a broken layout can
+   * push content off screen. Emptying the body and dropping every stylesheet leaves
+   * nothing to compete with.
+   */
+  function teardown() {
+    try {
+      document.body.textContent = ''
+    } catch (e) {}
+    try {
+      var sheets = document.querySelectorAll('link[rel="stylesheet"], style')
+      for (var i = sheets.length - 1; i >= 0; i--) {
+        try {
+          sheets[i].disabled = true
+        } catch (e) {}
+        try {
+          sheets[i].remove()
+        } catch (e) {}
+      }
+    } catch (e) {}
+    try {
+      document.body.removeAttribute('style')
+      document.body.removeAttribute('class')
+      document.body.removeAttribute('data-theme')
+      document.documentElement.removeAttribute('style')
+    } catch (e) {}
+    try {
+      var m = document.querySelector('meta[name="theme-color"]')
+      if (m) m.setAttribute('content', '#ffffff')
+    } catch (e) {}
+  }
+
+  /* -------------------------------------------------------------------- pieces */
+
+  function heading(text) {
+    return el(
+      'h2',
+      { font: '600 15px ' + FONT, margin: '26px 0 10px', color: '#000' },
+      text,
+    )
+  }
+
+  /**
+   * A button plus its own result line. Each action owns its reporting, so a failure is
+   * attributed to the thing that failed instead of blanking the screen.
+   */
+  function action(label, description, danger, fn) {
+    var wrap = el('div', { margin: '0 0 14px' })
+
+    var btn = el(
+      'button',
+      {
+        display: 'block',
+        width: '100%',
+        minHeight: '52px',
+        padding: '14px 16px',
+        font: '600 15px ' + FONT,
+        textAlign: 'left',
+        color: danger ? '#b3261e' : '#000',
+        background: '#fff',
+        border: '1.5px solid ' + (danger ? '#b3261e' : '#767676'),
+        borderRadius: '8px',
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+      },
+      label,
+    )
+    btn.type = 'button'
+
+    var desc = el(
+      'div',
+      { font: '400 12.5px/1.4 ' + FONT, color: '#444', margin: '5px 2px 0' },
+      description,
+    )
+
+    var out = el('div', {
+      font: '400 12.5px/1.4 ' + FONT,
+      margin: '6px 2px 0',
+      display: 'none',
+      whiteSpace: 'pre-wrap',
+    })
+
+    function report(ok, message) {
+      out.style.display = 'block'
+      out.style.color = ok ? '#146c2e' : '#b3261e'
+      out.textContent = (ok ? '✓ ' : '✗ ') + message
+    }
+
+    btn.addEventListener('click', function () {
+      out.style.display = 'none'
+      btn.disabled = true
+      btn.style.opacity = '.55'
+      var reenable = function () {
+        btn.disabled = false
+        btn.style.opacity = '1'
+      }
+      try {
+        var result = fn(report, wrap)
+        if (result && typeof result.then === 'function') {
+          result.then(reenable, function (err) {
+            report(false, String((err && err.message) || err))
+            reenable()
+          })
+        } else {
+          reenable()
+        }
+      } catch (err) {
+        report(false, String((err && err.message) || err))
+        reenable()
+      }
+    })
+
+    wrap.appendChild(btn)
+    wrap.appendChild(desc)
+    wrap.appendChild(out)
+    return wrap
+  }
+
+  /* ---------------------------------------------------------------- data access */
+
+  /** Read the app's data document with raw IndexedDB. Resolves null when absent. */
+  function readData() {
+    return new Promise(function (resolve, reject) {
+      if (!('indexedDB' in window) || !window.indexedDB) {
+        reject(new Error('This browser has no IndexedDB, so there is no saved data.'))
+        return
+      }
+      var req
+      try {
+        req = indexedDB.open(DATA_DB)
+      } catch (err) {
+        reject(err)
+        return
+      }
+      req.onerror = function () {
+        reject(req.error || new Error('Could not open the data store.'))
+      }
+      req.onupgradeneeded = function () {
+        // Opening created it, so there was nothing saved. Do not leave a stray store.
+        try {
+          req.transaction.abort()
+        } catch (e) {}
+        resolve(null)
+      }
+      req.onsuccess = function () {
+        var db = req.result
+        try {
+          if (!db.objectStoreNames.contains(DATA_STORE)) {
+            db.close()
+            resolve(null)
+            return
+          }
+          var tx = db.transaction(DATA_STORE, 'readonly')
+          var getReq = tx.objectStore(DATA_STORE).get(DATA_KEY)
+          getReq.onsuccess = function () {
+            db.close()
+            resolve(getReq.result != null ? getReq.result : null)
+          }
+          getReq.onerror = function () {
+            db.close()
+            reject(getReq.error || new Error('Could not read saved data.'))
+          }
+        } catch (err) {
+          try {
+            db.close()
+          } catch (e) {}
+          reject(err)
+        }
+      }
+    })
+  }
+
+  function deleteCachesMatching(prefix) {
+    if (!('caches' in window)) return Promise.resolve(0)
+    return caches.keys().then(function (names) {
+      var targets = names.filter(function (n) {
+        return n.indexOf(prefix) === 0
+      })
+      return Promise.all(
+        targets.map(function (n) {
+          return caches.delete(n)
+        }),
+      ).then(function () {
+        return targets.length
+      })
+    })
+  }
+
+  function clearBootKeys() {
+    var removed = 0
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i)
+        if (k && k.indexOf('slp.boot.') === 0) {
+          localStorage.removeItem(k)
+          removed += 1
+        }
+      }
+    } catch (e) {}
+    return removed
+  }
+
+  function unregisterSW() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(0)
+    return navigator.serviceWorker
+      .getRegistrations()
+      .then(function (regs) {
+        return Promise.all(
+          regs.map(function (r) {
+            return r.unregister()
+          }),
+        ).then(function () {
+          return regs.length
+        })
+      })
+      .catch(function () {
+        return 0
+      })
+  }
+
+  /* ----------------------------------------------------------------- the screen */
+
+  function open(reason, bootApi) {
+    boot = bootApi || (slp && slp.boot) || null
+
+    try {
+      teardown()
+    } catch (e) {}
+
+    root = el('div', {
+      position: 'fixed',
+      inset: '0',
+      zIndex: '2147483647',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
+      background: '#ffffff',
+      color: '#000000',
+      font: '400 15px/1.45 ' + FONT,
+      padding: 'env(safe-area-inset-top, 0) 0 40px',
+      boxSizing: 'border-box',
+    })
+
+    var page = el('div', {
+      maxWidth: '620px',
+      margin: '0 auto',
+      padding: '24px 18px 0',
+      boxSizing: 'border-box',
+    })
+
+    page.appendChild(
+      el('h1', { font: '600 21px ' + FONT, margin: '0 0 8px', color: '#000' }, 'Shopping List'),
+    )
+    page.appendChild(
+      el(
+        'p',
+        { font: '400 14.5px/1.45 ' + FONT, margin: '0 0 4px', color: '#333' },
+        reason === 'manual' || reason === 'hash'
+          ? 'Recovery options. Your saved lists are not affected by opening this screen.'
+          : 'The app did not start correctly. Your saved lists are still on this device.',
+      ),
+    )
+
+    page.appendChild(heading('Try this first'))
+    page.appendChild(buildSafeActions())
+
+    page.appendChild(heading('Your data'))
+    page.appendChild(buildExport())
+
+    page.appendChild(heading('Last resort'))
+    page.appendChild(buildDestructive())
+
+    page.appendChild(heading('Diagnostics'))
+    page.appendChild(buildDiagnostics(reason))
+
+    root.appendChild(page)
+    document.body.appendChild(root)
+  }
+
+  function reload() {
+    // Drop #rescue so a manual visit does not trap the user on this screen.
+    try {
+      location.replace(location.pathname + location.search)
+    } catch (e) {
+      location.reload()
+    }
+  }
+
+  function buildSafeActions() {
+    var box = el('div')
+
+    box.appendChild(
+      action('Reload the app', 'Tries the current version again.', false, function (report) {
+        try {
+          if (boot) boot.del('attempts')
+        } catch (e) {}
+        report(true, 'Reloading…')
+        setTimeout(reload, 400)
+      }),
+    )
+
+    var previous = null
+    try {
+      previous = boot ? boot.get('previous') : null
+    } catch (e) {}
+    var prevManifest = null
+    try {
+      prevManifest = previous && boot ? boot.manifestOf(previous) : null
+    } catch (e) {}
+
+    if (previous && prevManifest) {
+      box.appendChild(
+        action(
+          'Go back to version ' + (prevManifest.version || previous),
+          'Switches to the last version that worked. Already on this device, so it works offline.',
+          false,
+          function (report) {
+            if (!boot) throw new Error('Bootloader unavailable.')
+            // Remember the version being abandoned, or the next update check re-stages
+            // it and the following launch drops the user straight back into it.
+            boot.markBad(boot.get('active'))
+            boot.set('active', previous)
+            boot.del('previous')
+            boot.del('pending')
+            boot.del('attempts')
+            boot.set('rolledBack', '1')
+            report(true, 'Switched. Reloading…')
+            setTimeout(reload, 400)
+          },
+        ),
+      )
+    }
+
+    box.appendChild(
+      action(
+        'Download a fresh copy',
+        'Re-downloads the newest version from the server, ignoring anything cached. Needs a connection.',
+        false,
+        function (report) {
+          if (!boot) throw new Error('Bootloader unavailable.')
+          if (!('caches' in window)) throw new Error('This browser has no Cache Storage.')
+          report(true, 'Downloading…')
+          return boot
+            .fetchLatest()
+            .then(function (mf) {
+              // Drop the target build's cache before re-staging. The service worker
+              // serves release assets cache-first, so without this we would faithfully
+              // re-cache the very bytes we are trying to escape. It has to be the build
+              // we are about to fetch, not merely the active one -- after a rollback
+              // those are different.
+              return caches.delete(boot.cachePrefix + mf.build).then(function () {
+                return mf
+              })
+            })
+            .then(function (mf) {
+              return boot.stage(mf, null, true)
+            })
+            .then(function (build) {
+              boot.set('active', build)
+              boot.del('pending')
+              boot.del('attempts')
+              boot.del('rolledBack')
+              // An explicit request to run the newest build overrides any earlier
+              // decision that it was bad -- this is the user overruling the automatic
+              // rollback, which is the whole point of the button.
+              boot.clearBad()
+              report(true, 'Downloaded version ' + build + '. Reloading…')
+              setTimeout(reload, 600)
+            })
+        },
+      ),
+    )
+
+    return box
+  }
+
+  function buildExport() {
+    var box = el('div')
+
+    box.appendChild(
+      action(
+        'Export my lists',
+        'Saves everything as a JSON file you can import again later. Do this before using anything below.',
+        false,
+        function (report, wrap) {
+          return readData().then(function (doc) {
+            if (doc == null) {
+              report(false, 'No saved data found on this device.')
+              return
+            }
+            var json = JSON.stringify(doc, null, 1)
+
+            var area = el('textarea', {
+              display: 'block',
+              width: '100%',
+              height: '150px',
+              marginTop: '10px',
+              font: '400 11.5px/1.35 ' + MONO,
+              padding: '8px',
+              border: '1px solid #767676',
+              borderRadius: '6px',
+              boxSizing: 'border-box',
+              background: '#fff',
+              color: '#000',
+            })
+            area.value = json
+            area.readOnly = true
+
+            var existing = wrap.querySelector('textarea')
+            if (existing) existing.remove()
+            var existingLink = wrap.querySelector('a')
+            if (existingLink) existingLink.remove()
+            wrap.appendChild(area)
+
+            // A file is more durable than a text selection, but the textarea above is
+            // the fallback when Blob URLs are unavailable.
+            try {
+              var blob = new Blob([json], { type: 'application/json' })
+              var a = el(
+                'a',
+                {
+                  display: 'inline-block',
+                  marginTop: '8px',
+                  font: '600 13.5px ' + FONT,
+                  color: '#0b57d0',
+                },
+                'Save as a file',
+              )
+              a.href = URL.createObjectURL(blob)
+              a.download = 'shopping-list-backup.json'
+              wrap.appendChild(a)
+            } catch (e) {
+              /* textarea above is the fallback */
+            }
+
+            report(true, 'Exported ' + ((doc.lists && doc.lists.length) || 0) + ' list(s).')
+          })
+        },
+      ),
+    )
+
+    return box
+  }
+
+  function buildDestructive() {
+    var box = el('div')
+
+    box.appendChild(
+      action(
+        'Clear the app, keep my lists',
+        'Removes all downloaded app files and starts fresh from the server. Your saved lists are untouched.',
+        true,
+        function (report) {
+          report(true, 'Clearing…')
+          return deleteCachesMatching('slp.')
+            .then(function (n) {
+              clearBootKeys()
+              return unregisterSW().then(function () {
+                return n
+              })
+            })
+            .then(function (n) {
+              report(true, 'Cleared ' + n + ' cache(s). Reloading…')
+              setTimeout(reload, 600)
+            })
+        },
+      ),
+    )
+
+    var confirmBox = el('div', { margin: '0 0 14px' })
+    var confirmInput = el('input', {
+      display: 'block',
+      width: '100%',
+      minHeight: '46px',
+      padding: '10px 12px',
+      marginTop: '6px',
+      font: '400 15px ' + MONO,
+      border: '1.5px solid #b3261e',
+      borderRadius: '8px',
+      boxSizing: 'border-box',
+      background: '#fff',
+      color: '#000',
+    })
+    confirmInput.type = 'text'
+    confirmInput.placeholder = 'Type RESET to confirm'
+    confirmInput.autocapitalize = 'characters'
+    confirmInput.autocomplete = 'off'
+
+    confirmBox.appendChild(
+      action(
+        'Erase everything',
+        'Deletes the app AND all of your saved lists. This cannot be undone. Export first.',
+        true,
+        function (report) {
+          if (confirmInput.value.trim().toUpperCase() !== 'RESET') {
+            report(false, 'Type RESET in the box below to confirm.')
+            return
+          }
+          report(true, 'Erasing…')
+          return deleteCachesMatching('slp.')
+            .then(function () {
+              clearBootKeys()
+              return unregisterSW()
+            })
+            .then(function () {
+              return new Promise(function (resolve) {
+                if (!('indexedDB' in window)) return resolve()
+                var req
+                try {
+                  req = indexedDB.deleteDatabase(DATA_DB)
+                } catch (e) {
+                  return resolve()
+                }
+                req.onsuccess = req.onerror = req.onblocked = function () {
+                  resolve()
+                }
+              })
+            })
+            .then(function () {
+              report(true, 'Erased. Reloading…')
+              setTimeout(reload, 600)
+            })
+        },
+      ),
+    )
+    confirmBox.appendChild(confirmInput)
+    box.appendChild(confirmBox)
+
+    return box
+  }
+
+  function buildDiagnostics(reason) {
+    var lines = []
+    function add(label, value) {
+      lines.push(label + ': ' + (value == null || value === '' ? '—' : value))
+    }
+
+    add('Reason', reason)
+    try {
+      var active = boot ? boot.get('active') : null
+      var mf = active && boot ? boot.manifestOf(active) : null
+      add('Active build', active)
+      add('Active version', mf && mf.version)
+      add('Previous build', boot ? boot.get('previous') : null)
+      add('Pending build', boot ? boot.get('pending') : null)
+      add('Failed attempts', boot ? boot.get('attempts') || '0' : null)
+      add('Rolled back', boot && boot.get('rolledBack') === '1' ? 'yes' : 'no')
+    } catch (e) {
+      add('Boot state', 'unreadable (' + e + ')')
+    }
+    add('URL', location.href)
+    add('Online', navigator.onLine ? 'yes' : 'no')
+    add('User agent', navigator.userAgent)
+
+    var errors = []
+    try {
+      errors = (boot && boot.getJSON('errors', [])) || []
+    } catch (e) {}
+    if (slp && slp.errors && slp.errors.length) {
+      errors = errors.concat(slp.errors)
+    }
+    if (errors.length) {
+      lines.push('')
+      lines.push('Recent errors (newest last):')
+      errors.slice(-8).forEach(function (e) {
+        lines.push(
+          '  [' + new Date(e.t || Date.now()).toISOString() + '] ' + e.reason + ' — ' + (e.msg || ''),
+        )
+      })
+    }
+
+    var text = lines.join('\n')
+
+    var pre = el(
+      'pre',
+      {
+        font: '400 11px/1.45 ' + MONO,
+        background: '#f2f2f2',
+        color: '#000',
+        border: '1px solid #ccc',
+        borderRadius: '6px',
+        padding: '10px',
+        overflowX: 'auto',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        margin: '0 0 10px',
+      },
+      text,
+    )
+
+    var box = el('div')
+    box.appendChild(pre)
+
+    // Storage estimate is informational and frequently unavailable; never let it throw.
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        navigator.storage.estimate().then(
+          function (est) {
+            var mb = function (n) {
+              return n == null ? '?' : (n / 1048576).toFixed(1) + ' MB'
+            }
+            pre.textContent += '\nStorage used: ' + mb(est.usage) + ' of ' + mb(est.quota)
+          },
+          function () {},
+        )
+      }
+    } catch (e) {}
+
+    box.appendChild(
+      action('Copy diagnostics', 'Copies the text above.', false, function (report) {
+        var value = pre.textContent
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(value).then(
+            function () {
+              report(true, 'Copied.')
+            },
+            function () {
+              report(false, 'The browser blocked copying. Select the text above instead.')
+            },
+          )
+        }
+        report(false, 'Copying is unavailable. Select the text above instead.')
+      }),
+    )
+
+    return box
+  }
+
+  slp.rescue = { open: open }
+})()
+
+    </script>
+    <script>
+      /*
+ * Shopping List bootloader.
+ *
+ * Inlined into docs/index.html by scripts/build-shell.mjs. Runs as a classic script
+ * before any application code exists, and must never import anything, because everything
+ * it needs has to already be resident when the thing it is rescuing you from happens.
+ *
+ * Responsibilities:
+ *   1. Decide which build to run, and load it from Cache Storage.
+ *   2. Detect a build that fails to start, and recover -- retry, then roll back, then
+ *      hand off to the rescue screen.
+ *   3. Stage the next update completely before it is ever used, so the cutover is a
+ *      local pointer flip that cannot be interrupted by the network.
+ *
+ * Boot metadata lives in localStorage rather than IndexedDB on purpose: it is
+ * synchronous, so the decisions below cannot be blocked by an async failure, and it has
+ * far fewer ways to be unavailable. Application data lives in a *separate* IndexedDB
+ * database that nothing in this file or rescue.js ever touches.
+ */
+;(function () {
+  'use strict'
+
+  var slp = window.__slp
+
+  /* ---------------------------------------------------------------- constants */
+
+  // The app's own directory, derived at runtime. Nothing here may hardcode a path: the
+  // same build has to run at the Pages subpath, at a staging root, and on localhost.
+  var ROOT = new URL('./', document.baseURI)
+
+  var PREFIX = 'slp.boot.'
+  var CACHE_PREFIX = 'slp.release.'
+
+  var ASSET_TIMEOUT_MS = 30000 // T1: bytes must arrive (generous; first install may be slow)
+  var MOUNT_TIMEOUT_MS = 5000 // T2: once they have, the app must render
+  var MAX_ATTEMPTS = 2 // failures of one build before rolling back
+  var MAX_ERRORS = 20 // error ring buffer
+
+  /* ------------------------------------------------------------------ storage */
+
+  // localStorage can be entirely unavailable (some private-browsing modes, embedded
+  // webviews with storage disabled). Degrade to memory rather than throwing: the app
+  // still runs, it just re-downloads on every launch instead of persisting a pointer.
+  var mem = Object.create(null)
+
+  function get(key) {
+    try {
+      var v = localStorage.getItem(PREFIX + key)
+      return v === null ? undefined : v
+    } catch (e) {
+      return mem[key]
+    }
+  }
+
+  function set(key, value) {
+    try {
+      localStorage.setItem(PREFIX + key, String(value))
+    } catch (e) {
+      mem[key] = String(value)
+    }
+  }
+
+  function del(key) {
+    try {
+      localStorage.removeItem(PREFIX + key)
+    } catch (e) {
+      delete mem[key]
+    }
+  }
+
+  function getJSON(key, fallback) {
+    var raw = get(key)
+    if (raw === undefined) return fallback
+    try {
+      return JSON.parse(raw)
+    } catch (e) {
+      return fallback
+    }
+  }
+
+  function setJSON(key, value) {
+    set(key, JSON.stringify(value))
+  }
+
+  /* -------------------------------------------------------------------- utils */
+
+  function at(path) {
+    return new URL(path, ROOT).href
+  }
+
+  function releaseUrl(build, path) {
+    return at('releases/' + build + '/' + path)
+  }
+
+  function manifestOf(build) {
+    return build ? getJSON('mf.' + build, null) : null
+  }
+
+  /**
+   * Builds known to fail on this device.
+   *
+   * Without this list, recovery loops: rolling back frees the bad build's cache, the
+   * next update check sees it is still the newest on the server, stages it again, and
+   * the following launch promotes straight back into it. A shipped bad release would
+   * ping-pong forever instead of settling on the last good version.
+   *
+   * Entries are cleared only by publishing a different build, or by the user explicitly
+   * choosing "Download a fresh copy" from the rescue screen.
+   */
+  function badBuilds() {
+    return getJSON('bad', [])
+  }
+
+  function markBad(build) {
+    if (!build) return
+    var bad = badBuilds()
+    if (bad.indexOf(build) !== -1) return
+    bad.push(build)
+    while (bad.length > 5) bad.shift()
+    setJSON('bad', bad)
+  }
+
+  function isBad(build) {
+    return badBuilds().indexOf(build) !== -1
+  }
+
+  function recordError(reason, err) {
+    var entry = {
+      t: Date.now(),
+      reason: reason,
+      build: get('active') || null,
+      msg: err ? String((err && err.stack) || (err && err.message) || err).slice(0, 600) : '',
+    }
+    slp.errors.push(entry)
+    var log = getJSON('errors', [])
+    log.push(entry)
+    while (log.length > MAX_ERRORS) log.shift()
+    setJSON('errors', log)
+  }
+
+  /* -------------------------------------------------------------- boot status */
+
+  var statusEl = null
+
+  function status(title, detail, actionLabel, action) {
+    if (!statusEl) statusEl = document.getElementById('slp-boot')
+    if (!statusEl) return
+    statusEl.textContent = ''
+    var h = document.createElement('div')
+    h.className = 'slp-boot-title'
+    h.textContent = title
+    statusEl.appendChild(h)
+    if (detail) {
+      var p = document.createElement('div')
+      p.className = 'slp-boot-detail'
+      p.textContent = detail
+      statusEl.appendChild(p)
+    }
+    if (actionLabel) {
+      var b = document.createElement('button')
+      b.className = 'slp-boot-action'
+      b.type = 'button'
+      b.textContent = actionLabel
+      b.addEventListener('click', action)
+      statusEl.appendChild(b)
+    }
+    statusEl.hidden = false
+  }
+
+  function clearStatus() {
+    if (statusEl) statusEl.hidden = true
+  }
+
+  /* ------------------------------------------------------------------ failure */
+
+  var settled = false // true once this boot has been decided, either way
+
+  /**
+   * Report an unrecoverable failure.
+   *
+   * The rescue screen is rendered on a *later* task, never synchronously. Callers rely
+   * on that: criticalSection() in the app reports through here and then rethrows, and the
+   * drag engine's teardown runs in a `finally` on the way out. Rendering rescue inline
+   * would tear the DOM down before that teardown ran, leaving the user on a rescue screen
+   * with permanently broken touch scrolling underneath it.
+   */
+  function fail(reason, err) {
+    recordError(reason, err)
+    if (settled) return
+    settled = true
+    clearTimers()
+    setTimeout(function () {
+      openRescue(reason)
+    }, 0)
+  }
+
+  function openRescue(reason) {
+    if (slp.rescue && slp.rescue.open) {
+      slp.rescue.open(reason, api)
+    } else {
+      // rescue.js failed to parse -- should be impossible, but never leave a blank page.
+      document.body.innerHTML =
+        '<div style="font:16px system-ui;padding:24px;color:#000;background:#fff">' +
+        'Shopping List could not start.<br><br>' +
+        '<a href="reset.html" style="color:#00e">Open the reset page</a></div>'
+    }
+  }
+
+  /* ------------------------------------------------------------------- timers */
+
+  var t1 = 0
+  var t2 = 0
+
+  function clearTimers() {
+    if (t1) clearTimeout(t1)
+    if (t2) clearTimeout(t2)
+    t1 = t2 = 0
+  }
+
+  /**
+   * Refuse to judge a hidden document, and retry once it is actually on screen.
+   *
+   * A backgrounded tab does not paint and does not run requestAnimationFrame, so a
+   * perfectly healthy build that was launched and immediately backgrounded looks exactly
+   * like one that failed to start. Condemning it would roll back a working version
+   * because the user switched apps during startup. Returns true when the decision was
+   * deferred.
+   */
+  function deferIfHidden(retry) {
+    if (!document.hidden) return false
+    var onVisible = function () {
+      if (document.hidden) return
+      document.removeEventListener('visibilitychange', onVisible)
+      if (!settled) retry()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return true
+  }
+
+  /* ------------------------------------------------------------- health check */
+
+  /**
+   * Healthy means BOTH the app said so AND it actually painted.
+   *
+   * Either signal alone lies in a different direction: a flag set by an app that rendered
+   * nothing looks healthy, and an app that painted but regressed its ready call looks
+   * broken. Requiring both catches the blank-screen case, which is the one a user cannot
+   * diagnose or work around.
+   */
+  function isHealthy() {
+    if (window.__APP_READY__ !== true) return false
+    var bar = document.querySelector('[data-app-topbar]')
+    return !!bar && bar.offsetHeight > 0
+  }
+
+  function markHealthy() {
+    if (settled) return
+    settled = true
+    clearTimers()
+    clearStatus()
+    del('attempts')
+    del('rolledBack')
+
+    var build = get('active')
+    var good = getJSON('good', [])
+    if (good.indexOf(build) === -1) {
+      good.push(build)
+      while (good.length > 5) good.shift()
+      setJSON('good', good)
+    }
+
+    // Only now, with a proven-good build running, do we touch the network.
+    whenIdle(function () {
+      pruneCaches()
+      checkForUpdate()
+    })
+  }
+
+  function whenIdle(fn) {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(fn, { timeout: 5000 })
+    } else {
+      setTimeout(fn, 2000)
+    }
+  }
+
+  /* ------------------------------------------------------------- app injection */
+
+  function injectApp(build, mf) {
+    var files = (mf.css || []).concat([mf.entry])
+    var remaining = files.length
+
+    function mountCheck() {
+      if (settled) return
+      if (isHealthy()) {
+        markHealthy()
+        return
+      }
+      if (
+        deferIfHidden(function () {
+          t2 = setTimeout(mountCheck, MOUNT_TIMEOUT_MS)
+        })
+      ) {
+        return
+      }
+      fail('mount-timeout')
+    }
+
+    function assetLoaded() {
+      remaining -= 1
+      if (remaining > 0 || settled) return
+      // Bytes are in. Only now does the mount clock start -- measuring from page start
+      // would false-positive on a slow first install over a bad connection.
+      if (t1) clearTimeout(t1)
+      t1 = 0
+      t2 = setTimeout(mountCheck, MOUNT_TIMEOUT_MS)
+    }
+
+    function assetFailed(e) {
+      // Fires immediately on a 404 or a dropped connection -- far more precise than
+      // waiting for T1, and the common case when a cache has been evicted mid-life.
+      fail('asset-load', new Error('Failed to load ' + ((e.target && e.target.src) || (e.target && e.target.href) || '?')))
+    }
+
+    // Backstop only: a 404 or dropped connection fires the elements' own error events
+    // immediately, which is both faster and more specific than this.
+    t1 = setTimeout(function assetCheck() {
+      if (settled) return
+      if (
+        deferIfHidden(function () {
+          t1 = setTimeout(assetCheck, ASSET_TIMEOUT_MS)
+        })
+      ) {
+        return
+      }
+      fail('asset-timeout')
+    }, ASSET_TIMEOUT_MS)
+
+    ;(mf.css || []).forEach(function (href) {
+      var link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.dataset.slpApp = '1'
+      link.addEventListener('load', assetLoaded)
+      link.addEventListener('error', assetFailed)
+      link.href = releaseUrl(build, href)
+      document.head.appendChild(link)
+    })
+
+    var script = document.createElement('script')
+    script.type = 'module'
+    script.dataset.slpApp = '1'
+    script.addEventListener('load', assetLoaded)
+    script.addEventListener('error', assetFailed)
+    script.src = releaseUrl(build, mf.entry)
+    document.head.appendChild(script)
+  }
+
+  /* -------------------------------------------------------------- update logic */
+
+  function latestUrl() {
+    // GitHub Pages serves everything with max-age=600 through a CDN and offers no header
+    // control, so the pointer is both no-store and cache-busted.
+    return at('releases/latest.json') + '?t=' + Date.now()
+  }
+
+  function fetchLatest() {
+    return fetch(latestUrl(), { cache: 'no-store' }).then(function (res) {
+      if (!res.ok) throw new Error('latest.json HTTP ' + res.status)
+      return res.json()
+    })
+  }
+
+  /**
+   * Download an entire build into its own cache bucket, then prove it landed.
+   *
+   * Anything less than complete is discarded. There is deliberately no partial state to
+   * resume from: a half-staged build that got recorded as available is precisely the
+   * failure this architecture exists to prevent.
+   */
+  function stage(mf, onProgress, force) {
+    var cacheName = CACHE_PREFIX + mf.build
+    var urls = mf.assets.map(function (p) {
+      return releaseUrl(mf.build, p)
+    })
+    var cache
+    var done = 0
+
+    return caches
+      .open(cacheName)
+      .then(function (c) {
+        cache = c
+        return Promise.all(
+          urls.map(function (u) {
+            // `force` bypasses the HTTP cache as well as ours. Normal staging does not
+            // need it -- release assets are content-hashed, so a cache hit is the right
+            // answer -- but a recovery download must be able to escape bad bytes.
+            return fetch(u, force ? { cache: 'reload' } : undefined)
+              .then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + u)
+                return cache.put(u, res)
+              })
+              .then(function () {
+                done += 1
+                if (onProgress) onProgress(done, urls.length)
+              })
+          }),
+        )
+      })
+      .then(function () {
+        // Verify rather than trust. cache.addAll() is specified to be atomic, but this
+        // is the one place where being wrong means shipping a broken app to a user who
+        // may be offline and unable to re-download, so the cost of checking is worth it.
+        return Promise.all(
+          urls.map(function (u) {
+            return cache.match(u).then(function (hit) {
+              if (!hit) throw new Error('Missing after staging: ' + u)
+            })
+          }),
+        )
+      })
+      .then(function () {
+        setJSON('mf.' + mf.build, mf)
+        return mf.build
+      })
+      .catch(function (err) {
+        // Leave nothing behind. The user's current build is untouched and they never
+        // learn this happened; the next launch simply tries again.
+        return caches.delete(cacheName).then(function () {
+          throw err
+        })
+      })
+  }
+
+  function checkForUpdate() {
+    if (!('caches' in window)) return
+    var active = get('active')
+    var pending = get('pending')
+
+    fetchLatest()
+      .then(function (mf) {
+        if (!mf || !mf.build || !mf.entry || !mf.assets) throw new Error('Malformed latest.json')
+        if (mf.build === active || mf.build === pending) return null
+        // A build this device already rolled back from. Re-staging it would undo the
+        // rollback on the next launch; wait for a genuinely new build instead.
+        if (isBad(mf.build)) return null
+        return stage(mf)
+      })
+      .then(function (build) {
+        if (!build) return
+        set('pending', build)
+        // The app may show a "restart to update" affordance; it is purely optional, and
+        // the update applies on the next cold start regardless.
+        window.dispatchEvent(new CustomEvent('slp:update-ready', { detail: { build: build } }))
+      })
+      .catch(function (err) {
+        // Update failures are never user-visible. Offline, flaky, 404 on a pruned
+        // release -- all of it just means "not this launch".
+        recordError('update-check', err)
+      })
+  }
+
+  function pruneCaches() {
+    if (!('caches' in window)) return
+    var keep = {}
+    ;['active', 'previous', 'pending'].forEach(function (k) {
+      var v = get(k)
+      if (v) keep[CACHE_PREFIX + v] = true
+    })
+    caches.keys().then(function (names) {
+      names.forEach(function (n) {
+        if (n.indexOf(CACHE_PREFIX) === 0 && !keep[n]) caches.delete(n)
+      })
+    })
+    // Drop stored manifests for builds we no longer hold.
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i)
+        if (k && k.indexOf(PREFIX + 'mf.') === 0) {
+          var b = k.slice((PREFIX + 'mf.').length)
+          if (!keep[CACHE_PREFIX + b]) localStorage.removeItem(k)
+        }
+      }
+    } catch (e) {
+      /* storage unavailable; nothing to prune */
+    }
+  }
+
+  /* ---------------------------------------------------------------- first run */
+
+  function firstRun() {
+    status('Setting up…', 'Downloading the app. This happens once.')
+    fetchLatest()
+      .then(function (mf) {
+        return stage(mf, function (done, total) {
+          status('Setting up…', 'Downloading ' + done + ' of ' + total + '…')
+        })
+      })
+      .then(function (build) {
+        set('active', build)
+        clearStatus()
+        run()
+      })
+      .catch(function (err) {
+        recordError('first-run', err)
+        status(
+          'Needs a connection',
+          'Shopping List has to download once before it can work offline.',
+          'Try again',
+          function () {
+            location.reload()
+          },
+        )
+      })
+  }
+
+  /* --------------------------------------------------------------------- boot */
+
+  function run() {
+    var build = get('active')
+    var mf = manifestOf(build)
+
+    if (!build || !mf) {
+      // Pointer without a manifest means storage was partially cleared. Treat as first
+      // run rather than trying to repair it.
+      del('active')
+      firstRun()
+      return
+    }
+
+    var attempts = parseInt(get('attempts') || '0', 10) || 0
+    set('attempts', attempts + 1)
+
+    injectApp(build, mf)
+
+    // Registered on every boot, not gated on app health: what it caches is the bootloader
+    // and the rescue screen, which are exactly what must survive a broken app.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(at('sw.js'), { scope: ROOT.pathname }).catch(function (err) {
+        recordError('sw-register', err)
+      })
+    }
+  }
+
+  function start() {
+    // Explicit escape hatch, handled before a single line of app code is loaded.
+    if (/(^|[#&])rescue\b/.test(location.hash)) {
+      settled = true
+      openRescue('hash')
+      return
+    }
+
+    var attempts = parseInt(get('attempts') || '0', 10) || 0
+    var previous = get('previous')
+    var rolledBack = get('rolledBack') === '1'
+
+    if (attempts >= MAX_ATTEMPTS) {
+      if (previous && !rolledBack && previous !== get('active') && manifestOf(previous)) {
+        // This build has failed twice. Fall back to the last one that worked and give it
+        // the same allowance; if that fails too, we stop guessing and ask the user.
+        var failing = get('active')
+        recordError('auto-rollback', new Error('Rolling back from ' + failing + ' to ' + previous))
+        markBad(failing)
+        set('active', previous)
+        del('previous')
+        set('rolledBack', '1')
+        del('attempts')
+      } else {
+        settled = true
+        openRescue('boot-loop')
+        return
+      }
+    } else if (attempts === 0) {
+      // Only promote on a clean start. Promoting during a crash loop would swap in an
+      // untried build at the exact moment we are trying to establish what works.
+      var pending = get('pending')
+      if (pending && manifestOf(pending) && !isBad(pending)) {
+        var active = get('active')
+        if (active && active !== pending) set('previous', active)
+        set('active', pending)
+        del('pending')
+      }
+    }
+
+    run()
+  }
+
+  /* ---------------------------------------------------------------- public API */
+
+  // Consumed by rescue.js, and by the app through src/app/core/bootBridge.ts.
+  var api = {
+    ROOT: ROOT,
+    at: at,
+    get: get,
+    set: set,
+    del: del,
+    getJSON: getJSON,
+    setJSON: setJSON,
+    manifestOf: manifestOf,
+    cachePrefix: CACHE_PREFIX,
+    prefix: PREFIX,
+    stage: stage,
+    fetchLatest: fetchLatest,
+    isHealthy: isHealthy,
+    markBad: markBad,
+    isBad: isBad,
+    clearBad: function () {
+      del('bad')
+    },
+  }
+  slp.boot = api
+
+  window.__bootOk = function () {
+    window.__APP_READY__ = true
+    // If layout has not settled yet, leave T2 running rather than deciding early.
+    if (isHealthy()) markHealthy()
+  }
+
+  window.__bootFail = function (reason, err) {
+    fail(reason || 'app', err)
+  }
+
+  window.__rescue = function (reason) {
+    settled = true
+    clearTimers()
+    openRescue(reason || 'manual')
+  }
+
+  // Errors captured by the prelude before this script ran (see index.template.html).
+  if (slp.pending && slp.pending.length) {
+    var early = slp.pending.slice()
+    slp.pending.length = 0
+    early.forEach(function (e) {
+      recordError(e.reason, e.error)
+    })
+    fail('pre-boot', early[0] && early[0].error)
+    return
+  }
+
+  slp.onError = function (reason, err) {
+    // Before the app is up, any uncaught error is fatal -- it means the build did not
+    // start. Afterwards it is recorded but tolerated: tearing down a working session
+    // over one stray error would be worse than the error. Paths that genuinely cannot
+    // fail opt in explicitly via criticalSection().
+    if (settled) recordError(reason, err)
+    else fail(reason, err)
+  }
+
+  start()
+})()
+
+    </script>
+  </body>
+</html>

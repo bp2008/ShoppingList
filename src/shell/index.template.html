@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="Offline shopping list." />
+    <title>Shopping List</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+    <!--
+      ========================================================================
+      THIS FILE IS THE BOOTLOADER, NOT THE APP.
+      ========================================================================
+
+      Assembled by scripts/build-shell.mjs from src/shell/. It is precached by the service
+      worker and served for every navigation without touching the network, so it is what
+      users actually load. The application lives in releases/<buildId>/ and is injected by
+      the bootloader script at the end of <body>.
+
+      It is intended to be near-frozen. Editing it changes SHELL_VERSION, which makes
+      every device install a new service worker -- the one component whose stability the
+      whole recovery design rests on. Change it only when the boot or rescue behaviour
+      genuinely needs to change, never to ship an app feature.
+    -->
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #f4f5f7;
+        color: #14161a;
+        font:
+          400 15px/1.45 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Helvetica,
+          Arial,
+          sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #000;
+          color: #e8eaed;
+        }
+      }
+      #slp-boot[hidden] {
+        display: none;
+      }
+      #slp-boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 24px;
+        text-align: center;
+      }
+      .slp-boot-title {
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .slp-boot-detail {
+        font-size: 13px;
+        opacity: 0.7;
+      }
+      .slp-boot-action {
+        margin-top: 10px;
+        min-height: 46px;
+        padding: 12px 22px;
+        font: inherit;
+        font-weight: 600;
+        font-size: 15px;
+        color: #fff;
+        background: #2563eb;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+    </style>
+
+    <!--
+      PRELUDE. Must be the first script in the document.
+
+      Its only job is to be already running before anything that can fail. Separate
+      <script> elements are separate compilation units, so a syntax error anywhere below
+      -- including in a broken application bundle -- cannot prevent these handlers from
+      firing. Errors raised before the bootloader is ready are queued rather than dropped.
+    -->
+    <script>
+      window.__slp = { errors: [], pending: [], boot: null, rescue: null, onError: null }
+      ;(function () {
+        function capture(reason, error) {
+          var s = window.__slp
+          if (s.onError) {
+            try {
+              s.onError(reason, error)
+              return
+            } catch (e) {
+              /* fall through to the queue */
+            }
+          }
+          s.pending.push({ reason: reason, error: error })
+        }
+        window.addEventListener('error', function (e) {
+          capture('uncaught', (e && e.error) || (e && e.message))
+        })
+        window.addEventListener('unhandledrejection', function (e) {
+          capture('rejection', e && e.reason)
+        })
+      })()
+    </script>
+  </head>
+
+  <body>
+    <noscript>Shopping List needs JavaScript.</noscript>
+
+    <!-- Boot progress and first-run messaging. Hidden unless the bootloader needs it. -->
+    <div id="slp-boot" hidden></div>
+
+    <!-- The application mounts here. -->
+    <div id="app"></div>
+
+    <!--
+      Rescue first, so it is guaranteed to exist by the time the bootloader can need it,
+      then the bootloader. Both run at the end of <body> because they touch the DOM.
+    -->
+    <script>
+      /*__RESCUE_JS__*/
+    </script>
+    <script>
+      /*__BOOTLOADER_JS__*/
+    </script>
+  </body>
+</html>

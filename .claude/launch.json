@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "built-site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve.mjs", ".stage", "--port", "8080", "--mount", "/ShoppingList/"],
+      "port": 8080,
+      "url": "http://localhost:8080"
+    },
+    {
+      "name": "app-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    }
+  ]
+}
