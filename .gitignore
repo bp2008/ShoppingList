@@ -4,8 +4,6 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 # User-specific files
-private/
-
 # JavaScript toolchain.
 # NOTE: docs/ is the published GitHub Pages site and MUST stay tracked. Do not add it.
 dist/
@@ -27,15 +25,15 @@ dist/
 mono_crash.*
 
 # Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
+#[Dd]ebug/
+#[Dd]ebugPublic/
+#[Rr]elease/
+#[Rr]eleases/
 
-[Dd]ebug/x64/
-[Dd]ebugPublic/x64/
-[Rr]elease/x64/
-[Rr]eleases/x64/
+#[Dd]ebug/x64/
+#[Dd]ebugPublic/x64/
+#[Rr]elease/x64/
+#[Rr]eleases/x64/
 bin/x64/
 obj/x64/
 
