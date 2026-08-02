@@ -5,8 +5,9 @@
  * The plus is two divs rather than a `+` glyph. A glyph is centred on the font's own
  * metrics -- the plus sits on the maths axis, above the middle of the em box -- so it
  * always renders slightly high in a circle no matter what line-height it is given. Bars
- * are centred on the pixels the user actually sees, and they match the house style of
- * composing icons from divs so they stay theme-aware.
+ * are centred on the pixels the user actually sees. An SVG would centre just as exactly and
+ * is the better tool for anything more involved -- see "Icons and graphics" in
+ * DEVELOPING.md -- but for two rectangles it would only be more markup.
  */
 export default {
   name: 'Fab',

@@ -181,7 +181,7 @@ The core interaction. Implement with Pointer Events (a single code path covers m
 
 **Resting.** Optional back chevron (`‹`, 300 26px, 38×44 target, list screen only) · title block (flex, ellipsised single line; on home the title is `Shopping List` with `v0.1.0` in 10.5px mono beneath) · search icon (44×44) · hamburger (44×44, three 16×2px bars in `--text2`, 3.5px apart).
 
-The search icon is drawn as a 13×13 circle with `2px solid --text2` and a 2×7px bar rotated −45° at its lower-right — no icon font, no SVG.
+The search icon is a magnifier in `--text2`: a 13×13 ring with a 2px stroke and a 7px handle at −45° off its lower-right, the handle's axis passing through the centre of the ring.
 
 **Search expanded.** The title is replaced by the input, which **fills the bar and receives focus immediately** on expand. Layout: search glyph · `<input>` (400 16px — 16px minimum, or Android zooms on focus) · `×` clear button (38×44) that closes search and clears the query. The hamburger remains. Filtering is **in place**, not a dropdown: on home it filters tiles by list name or any catalog item name; on a list screen it filters both columns simultaneously.
 
@@ -285,7 +285,9 @@ Things the prototype does *not* settle, and that are worth deciding before build
 
 ## Assets
 
-None. There are no images, icon fonts, or SVG files. Every icon is composed from divs: the search glyph (circle + rotated bar), the hamburger (three bars), the grip (three bars), chevrons and `×` and `+` as text glyphs, and the checkbox tick as a `✓` character. Keep it that way if you can — it is theme-aware for free.
+No raster images and no icon fonts. Every icon in the prototype is composed from divs: the search glyph (circle + rotated bar), the hamburger (three bars), the grip (three bars), chevrons and `×` and `+` as text glyphs, and the checkbox tick as a `✓` character.
+
+Avoid bitmaps and icon fonts for UI chrome — the divs are theme-aware for free and a bitmap is not. **SVG is a good fit here** and is the better tool wherever the geometry is more than a few boxes; use it as you see fit.
 
 ## Files in this bundle
 

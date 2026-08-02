@@ -173,6 +173,32 @@ that, the hover rule outranks the press rule and a mouse press shows nothing.
 The rescue screen cannot use any of this — it deletes every stylesheet in the document
 before it renders — so `shell/rescue.js` carries a small inline-style equivalent.
 
+### Icons and graphics
+
+**SVG is the format for icons and simple graphics here.** It is crisp at any pixel ratio,
+it takes its colours from CSS, and the geometry is written as coordinates instead of as
+nudges — compare the checkbox tick, a three-point path that is centred because it says so,
+against the CSS version it replaced, two borders of an empty box rotated 45° and pulled
+back onto centre with a hand-tuned `translateY`.
+
+**Avoid raster images and icon fonts for anything that is part of the interface.** A bitmap
+cannot follow the theme: it needs one asset per theme and it flashes on the switch. Icon
+fonts drag in a whole font file, and a missing glyph fails as a visible tofu box. Neither
+buys anything an SVG does not. Photographs are a different question, and the launcher icons
+are PNG because the web manifest requires it — `scripts/icons.mjs` generates those.
+
+Inline in a template or loaded from a `.svg` file is a case-by-case call, with one
+consequence worth knowing: an SVG referenced through `<img src="…">` is a separate
+document, so page CSS cannot reach inside it and it cannot inherit `currentColor`. A themed
+icon therefore wants to be inline (or inlined by the build). A decorative graphic that
+never changes colour is fine as a file — though note it has to ride the release pipeline to
+be content-hashed into `releases/<buildId>/` and precached before it works offline.
+
+Several icons predate this and are composed from `div`s and borders — the hamburger, the
+grips, the FAB's plus. They render correctly and cost nothing, so they are **not a defect
+and do not need rewriting**; replace one when SVG makes it clearer or the box version is
+fighting you, as the search magnifier's did.
+
 ## The update model
 
 ```

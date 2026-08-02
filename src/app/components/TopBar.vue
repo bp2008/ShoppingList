@@ -5,9 +5,12 @@ import { closeLayer, openLayer } from '../ui/navigation'
 /**
  * The top bar, in its three states: resting, search expanded, and catalog-delete mode.
  *
- * Every icon is composed from divs rather than an SVG or icon font. That is a handoff
- * requirement and it pays for itself: the strokes read `--text2`, so they are theme-aware
- * with no second asset and no flash on theme change.
+ * The search magnifier is an SVG; the hamburger is three divs. Both stroke `--text2`, so
+ * both are theme-aware with no second asset and no flash on theme change -- see "Icons and
+ * graphics" in DEVELOPING.md. The magnifier earned the SVG: as a positioned ring plus a
+ * rotated bar its handle was 1.3px off the line through the ring's centre, which is not
+ * something you fix with better offsets. As two shapes on y = x it is collinear by
+ * construction.
  */
 export default {
   name: 'TopBar',
@@ -95,7 +98,11 @@ export default {
         <span v-if="version" class="version">{{ version }}</span>
       </div>
       <button class="icon tap" type="button" aria-label="Search" @click="openSearch">
-        <span class="search-icon"><i class="ring" /><i class="handle" /></span>
+        <!-- Ring centred on 8.5,8.5 and a handle along y=x, so the two are collinear. -->
+        <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="8.5" cy="8.5" r="6" />
+          <path d="M13.1 13.1 L17.5 17.5" />
+        </svg>
       </button>
     </template>
 
@@ -193,32 +200,15 @@ export default {
   color: var(--text2);
 }
 
+/* 20 viewBox units drawn at 18px, so the 2-unit stroke lands at 1.8px. */
 .search-icon {
-  position: relative;
+  display: block;
   width: 18px;
   height: 18px;
-}
-
-.ring {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 13px;
-  height: 13px;
-  border: 1.7px solid var(--text2);
-  border-radius: 50%;
-  box-sizing: border-box;
-}
-
-.handle {
-  position: absolute;
-  right: 0;
-  bottom: 1px;
-  width: 7px;
-  height: 1.7px;
-  background: var(--text2);
-  transform: rotate(45deg);
-  transform-origin: right center;
+  fill: none;
+  stroke: var(--text2);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .hamburger {
@@ -236,13 +226,12 @@ export default {
 }
 
 /* The icon strokes are the affordance, so they answer to hover as well as the wash. */
-html[data-input='mouse'] .icon:hover .hamburger i,
-html[data-input='mouse'] .icon:hover .handle {
+html[data-input='mouse'] .icon:hover .hamburger i {
   background: var(--text);
 }
 
-html[data-input='mouse'] .icon:hover .ring {
-  border-color: var(--text);
+html[data-input='mouse'] .icon:hover .search-icon {
+  stroke: var(--text);
 }
 
 /* --- catalog-delete mode ------------------------------------------------- */

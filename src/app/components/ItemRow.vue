@@ -48,7 +48,11 @@ export default {
         :aria-pressed="selected"
         @click.stop="$emit('toggle')"
       >
-        <span class="box" :class="{ on: selected }" />
+        <span class="box" :class="{ on: selected }">
+          <svg v-if="selected" class="tick" viewBox="0 0 17 17" aria-hidden="true">
+            <path d="M4.2 8.9 L7 11.7 L12.8 5.3" />
+          </svg>
+        </span>
       </button>
       <span
         v-else-if="showGrip"
@@ -168,6 +172,7 @@ export default {
 }
 
 .box {
+  display: block;
   width: 20px;
   height: 20px;
   border: 1.5px solid var(--text3);
@@ -178,5 +183,22 @@ export default {
 .box.on {
   background: var(--accent);
   border-color: var(--accent);
+  /* The tick strokes currentColor; white is what reads on accent, as on the accent bar. */
+  color: #fff;
+}
+
+/*
+ * The tick fills the box's content area, and its viewBox is that area's size in px — so the
+ * path coordinates are just pixels, and the whole thing rescales if the box ever does.
+ */
+.tick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 </style>
