@@ -94,6 +94,44 @@ export function spineColor(modified: number, dark: boolean, now: number = Date.n
   return 'transparent'
 }
 
+/** One run of text, and whether it is part of a search hit. See `highlightRuns`. */
+export interface Run {
+  text: string
+  hit: boolean
+}
+
+/**
+ * Split `text` into alternating plain and matching runs, for rendering a highlight.
+ *
+ * RUNS RATHER THAN MARKUP, deliberately. The obvious version of this wraps the matches in
+ * `<mark>` and hands the string to `v-html`, which would take user-entered list and item
+ * names — the one place in this app where arbitrary text is stored — and evaluate them as
+ * HTML. Returning the pieces lets the template put the tags there, where they cannot come
+ * from data.
+ *
+ * Case-insensitive to match `matchesQuery`, and every occurrence is marked, not just the
+ * first. An empty query is one plain run, so a caller never has to special-case it.
+ */
+export function highlightRuns(text: string, query: string): Run[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return [{ text, hit: false }]
+
+  const hay = text.toLowerCase()
+  const runs: Run[] = []
+  let at = 0
+
+  for (;;) {
+    const found = hay.indexOf(needle, at)
+    if (found === -1) break
+    if (found > at) runs.push({ text: text.slice(at, found), hit: false })
+    runs.push({ text: text.slice(found, found + needle.length), hit: true })
+    at = found + needle.length
+  }
+
+  if (at < text.length) runs.push({ text: text.slice(at), hit: false })
+  return runs
+}
+
 /** `Name ×N` on tile previews; the multiplier is omitted at quantity 1. */
 export function previewLine(name: string, qty: number): string {
   return qty > 1 ? `${name} ×${qty}` : name

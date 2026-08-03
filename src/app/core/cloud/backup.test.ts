@@ -9,7 +9,19 @@ function names(count: number, from = 1): string[] {
 
 describe('backupFileName', () => {
   it('zero-pads every field, in local time', () => {
-    expect(backupFileName(new Date(2026, 7, 2, 9, 5))).toBe('backup-2026-08-02-0905.json')
+    expect(backupFileName(new Date(2026, 7, 2, 9, 5, 7, 42))).toBe(
+      'backup-2026-08-02-090507-042.json',
+    )
+  })
+
+  /*
+   * The seconds and milliseconds exist so that two backups in the same minute get two
+   * names. An upload is `mode: 'add'`, so a repeated name is a 409 and a lost backup.
+   */
+  it('separates two backups within the same minute', () => {
+    const a = backupFileName(new Date(2026, 7, 2, 9, 5, 7, 42))
+    const b = backupFileName(new Date(2026, 7, 2, 9, 5, 7, 43))
+    expect(a).not.toBe(b)
   })
 
   /*
@@ -18,10 +30,16 @@ describe('backupFileName', () => {
    * left as a comment.
    */
   it('sorts lexicographically in chronological order', () => {
-    const early = backupFileName(new Date(2026, 7, 2, 9, 5))
-    const later = backupFileName(new Date(2026, 7, 2, 10, 0))
-    const nextYear = backupFileName(new Date(2027, 0, 1, 0, 0))
-    expect([nextYear, later, early].sort()).toEqual([early, later, nextYear])
+    const early = backupFileName(new Date(2026, 7, 2, 9, 5, 7, 42))
+    const sameSecond = backupFileName(new Date(2026, 7, 2, 9, 5, 7, 300))
+    const later = backupFileName(new Date(2026, 7, 2, 10, 0, 0, 0))
+    const nextYear = backupFileName(new Date(2027, 0, 1, 0, 0, 0, 0))
+    expect([nextYear, later, sameSecond, early].sort()).toEqual([
+      early,
+      sameSecond,
+      later,
+      nextYear,
+    ])
   })
 })
 
@@ -70,6 +88,17 @@ describe('prunable', () => {
     const doomed = prunable([...foreign, ...names(KEEP + 2)])
     for (const name of foreign) expect(doomed).not.toContain(name)
     expect(doomed).toHaveLength(2)
+  })
+
+  /*
+   * Names written before the seconds were added are still ours: a folder full of them has
+   * to keep shrinking, or the limit silently stops applying to everything already there.
+   */
+  it('still recognises minute-resolution names, and orders them with the rest', () => {
+    const legacy = 'backup-2026-08-02-1200.json'
+    const newer = 'backup-2026-08-03-120000-000.json'
+    const older = 'backup-2026-08-01-120000-000.json'
+    expect(prunable([newer, legacy, older], 1)).toEqual([older, legacy])
   })
 
   it('counts only its own files towards the limit', () => {

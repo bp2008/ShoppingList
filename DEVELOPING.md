@@ -147,6 +147,14 @@ search. `closeLayer()` steps back only when the previous entry is this entry min
 layer being closed, and rewrites the current entry when it is not — which covers a cold
 deep link into `#/list/<id>?search` for the same reason.
 
+**A search layer that arrives on a different screen with nothing typed is dropped.** The
+text is not in the URL, so an entry left while searching comes back blank: a search field
+open over unfiltered results, asking a question the user already answered somewhere else.
+`syncUi` closes it and rewrites the entry. The test is the *screen*, because opening search
+never changes it — tapping the magnifier adds the flag to whatever is already showing, so
+an empty box there is one the user is about to type into. This is also why reloading
+`?search` lands on a plain screen rather than an empty search box.
+
 Dialog kinds are an allow-list in `ui/navigation.js`, and the ones that act on the open
 list (`add-catalog`, `quantity`, `rename`, `delete-list`, `import-text`) are dropped when
 the URL names them on the home screen — a deep link cannot mount a dialog against a null
@@ -695,10 +703,38 @@ after that.
 ### What it does
 
 A snapshot is `buildExport(state.lists)` — byte-identical to a manual export — uploaded as
-`backup-YYYY-MM-DD-HHmm.json`, newest ten kept. It runs on start and whenever the app
-becomes visible, when the lists have changed AND six hours have passed. Restore downloads a
-file and hands it to `ImportDialog` through `ui.pendingImportText`, so merge/overwrite, the
-single `commit()`, and one-press undo are all the existing code.
+`backup-YYYY-MM-DD-HHmmss-mmm.json`, newest **60** kept. It runs on start and whenever the
+app becomes visible, when the lists have changed AND six hours have passed. Restore
+downloads a file and hands it to `ImportDialog` through `ui.pendingImportText`, so
+merge/overwrite, the single `commit()`, and one-press undo are all the existing code.
+
+The name is padded and biggest-unit-first so that sorting it lexicographically sorts it
+chronologically, which is what `prunable` relies on. **The seconds and milliseconds are for
+uniqueness, not for reading**: uploads are `mode: 'add'`, so a repeated name is a 409 and a
+lost backup, and minute resolution collided in practice — two devices on one account, a
+"Back up now" straight after an edit, or a retry after an upload that succeeded while the
+local record of it did not. Names written before the seconds existed are still matched by
+`prunable`, or a folder of them could never shrink again.
+
+### Connecting, and disconnecting
+
+`disconnect()` revokes the token at Dropbox before forgetting it locally. The credential on
+this device is only half the connection; the other half is a grant on the account, and
+leaving it standing means the app is still listed under the user's connected apps and the
+next sign-in is waved through with no Dropbox page shown at all. The revoke is best effort
+and the local half happens either way, so disconnecting offline still disconnects.
+
+For the same reason `authorizeUrl` sends `force_reapprove=true`: the approval screen is
+where the user sees which account they are about to link, and it is the only opportunity to
+pick a different one. Without it, an account that has approved this app once is redirected
+straight back with a fresh code and the whole round trip is invisible.
+
+The sign-in returns to a registered redirect URI, which is the bare directory and carries no
+hash, so `captureRedirect` rewrites the hash to `#/?settings` on the way in. The app then
+simply starts on the Settings sheet, with no home screen painted first and no extra history
+entry. `beginConnect` leaves via `location.replace` rather than `assign` for the same
+reason — the entry it leaves is a dead end, and keeping it buries a second Settings entry
+behind the Dropbox pages.
 
 ### Things that will bite you here
 

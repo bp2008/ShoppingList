@@ -6,8 +6,15 @@
  * the alternative way to find out that pruning is wrong is a user losing snapshots.
  */
 
-/** Snapshots kept in the app folder. Older ones are deleted after a successful upload. */
-export const KEEP = 10
+/**
+ * Snapshots kept in the app folder. Older ones are deleted after a successful upload.
+ *
+ * A few KB each, so the ceiling is about how much history is worth having rather than
+ * about space: at the six-hour floor below, 60 files is a fortnight of edits, and a list
+ * touched once a week is covered for over a year. It is a ceiling, not a target — nothing
+ * uploads to fill it.
+ */
+export const KEEP = 60
 
 /**
  * Floor on how often an unattended backup runs.
@@ -19,10 +26,16 @@ export const KEEP = 10
 export const MIN_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 /**
- * `backup-2026-08-02-1431.json`.
+ * `backup-2026-08-02-143159-123.json` — date, then `HHmmss`, then milliseconds.
  *
  * Zero-padded and biggest-unit-first, so a plain lexicographic sort of the file names IS
  * chronological order. `prunable` depends on that; do not reorder the fields.
+ *
+ * THE SECONDS AND MILLISECONDS ARE THERE TO MAKE THE NAME UNIQUE, not to be read. Uploads
+ * use `mode: 'add'` with `autorename: false`, so a name that already exists comes back as
+ * an HTTP 409 and the backup fails; at minute resolution that happened for real, because
+ * two devices on one account, a "Back up now" after a quick edit, and a retry after the
+ * upload succeeded but the local record of it did not, all land inside the same minute.
  *
  * Local time, not UTC, because it is the user's own folder and 14:31 should be the time
  * they were holding the phone.
@@ -30,11 +43,20 @@ export const MIN_INTERVAL_MS = 6 * 60 * 60 * 1000
 export function backupFileName(now: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  return `backup-${date}-${pad(now.getHours())}${pad(now.getMinutes())}.json`
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `backup-${date}-${time}-${String(now.getMilliseconds()).padStart(3, '0')}.json`
 }
 
-/** Matches exactly what `backupFileName` produces, and nothing else. See `prunable`. */
-const OURS = /^backup-\d{4}-\d{2}-\d{2}-\d{4}\.json$/
+/**
+ * What `backupFileName` produces, and nothing else. See `prunable`.
+ *
+ * The trailing group is optional so that names written before the seconds were added
+ * (`backup-2026-08-02-1431.json`) are still recognised as ours. Without that they would be
+ * neither counted nor pruned, and a folder full of them would never shrink again. They
+ * still sort into the right place: a minute-only name is identical up to the minute and
+ * `.` sorts below any digit, so it lands with the second-resolution names from that minute.
+ */
+const OURS = /^backup-\d{4}-\d{2}-\d{2}-\d{4}(\d{2}-\d{3})?\.json$/
 
 export interface DueInput {
   /** Hash of the CURRENT lists. */

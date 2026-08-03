@@ -68,6 +68,23 @@ export function filterLists(lists: List[], query: string): List[] {
   )
 }
 
+/**
+ * The catalog names in one list that match, alphabetical.
+ *
+ * `filterLists` answers whether a list matched; this answers where, which is what a tile
+ * has to show. A list can match on a catalog item it is not currently holding — that is
+ * the whole point of searching from the home screen — and then nothing in the ordinary
+ * preview says why the tile is there.
+ */
+export function catalogHits(list: List, query: string): string[] {
+  const q = query.trim()
+  if (!q) return []
+  return list.catalog
+    .filter((c) => matchesQuery(c.name, q))
+    .map((c) => c.name)
+    .sort((a, b) => a.localeCompare(b))
+}
+
 /** Home tiles show up to six item lines, in the list's own order. */
 export function listPreview(list: List, limit = 6): PreviewEntry[] {
   return list.items.slice(0, limit).map((it) => ({

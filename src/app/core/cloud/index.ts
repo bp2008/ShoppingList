@@ -101,6 +101,16 @@ function redirectUri(): string | null {
 /* -------------------------------------------------------------------- the round trip */
 
 /**
+ * Where the app is put after a sign-in comes back.
+ *
+ * Dropbox returns to a registered URI, which is the bare directory and carries no hash, so
+ * without this the round trip lands on the home screen and the user has to go and find the
+ * card they were just looking at to see whether any of it worked. Settings is the only
+ * place `beginConnect` can be reached from, so it is the only place to come back to.
+ */
+const RETURN_HASH = '#/?settings'
+
+/**
  * Take the OAuth result out of the URL, before anything else looks at it.
  *
  * CALLED FROM main.js INSIDE THE BOOTLOADER WATCHDOG WINDOW, so it is synchronous, does no
@@ -111,6 +121,10 @@ function redirectUri(): string | null {
  * The code arrives as a real query string, before the `#`, so hash routing never sees it.
  * Stripping it matters: authorisation codes are single-use, and leaving one in the URL
  * means a reload retries it and fails.
+ *
+ * Rewriting the hash here rather than navigating later is what keeps the return silent:
+ * the router is built from this URL a moment afterwards, so Settings is simply where the
+ * app starts, with no home screen painted first and no extra history entry.
  */
 export function captureRedirect(): void {
   try {
@@ -123,7 +137,7 @@ export function captureRedirect(): void {
 
     // Preserve history.state as-is: vue-router reads `back` off it to decide whether the
     // in-app close button can safely be a history.back().
-    history.replaceState(history.state, '', location.pathname + location.hash)
+    history.replaceState(history.state, '', location.pathname + (location.hash || RETURN_HASH))
   } catch {
     pending = null
   }
@@ -167,6 +181,11 @@ function detectLostRoundTrip(): void {
  *
  * A full-page navigation, never a popup: popups do not open in an installed iOS PWA, and
  * since iOS 17.5 an OAuth popup cannot talk back to its opener anyway.
+ *
+ * `replace`, not `assign`. The entry being left is a dead end -- the sign-in comes back to
+ * a fresh entry that reopens Settings by itself (see RETURN_HASH) -- and keeping it would
+ * bury a second Settings entry in the stack behind the Dropbox pages, which is exactly the
+ * history that then feels haunted when Back walks through it.
  */
 export async function beginConnect(): Promise<void> {
   // Belt and braces: the UI already disables the control when this is not 'ready', and
@@ -185,7 +204,7 @@ export async function beginConnect(): Promise<void> {
     localStorage.setItem(STATE_KEY, stateValue)
     localStorage.setItem(STARTED_KEY, String(Date.now()))
 
-    location.assign(api.authorizeUrl(challenge, stateValue, registered))
+    location.replace(api.authorizeUrl(challenge, stateValue, registered))
   } catch {
     cloud.error = 'Could not start Dropbox sign-in on this device'
   }
@@ -377,7 +396,32 @@ export function fetchBackup(path: string): Promise<string> {
   return withToken((token) => api.download(token, path))
 }
 
+/**
+ * Hand the credential back before forgetting it.
+ *
+ * Deleting our copy of the refresh token is only half of a disconnect: the approval it
+ * came from lives on the Dropbox account, and while it stands this app is still listed
+ * among the user's connected apps and the next sign-in is waved through without ever
+ * showing a Dropbox page. Revoking is what makes "Disconnect" mean what it says, and what
+ * makes connecting a *different* account possible afterwards.
+ *
+ * BEST EFFORT, AND THE LOCAL HALF HAPPENS EITHER WAY. A user disconnecting on a plane
+ * still gets disconnected; the stale grant is then cleared the next time they connect,
+ * because `authorizeUrl` asks for approval unconditionally.
+ *
+ * Backups are deliberately left alone. Revoking removes this app's access, not the user's
+ * own files.
+ */
 export async function disconnect(): Promise<void> {
+  cloud.busy = true
+  try {
+    await withToken((token) => api.revokeToken(token))
+  } catch {
+    /* offline, or already revoked at the other end */
+  } finally {
+    cloud.busy = false
+  }
+
   accessToken = ''
   accessExpiry = 0
   await connection.disconnect()

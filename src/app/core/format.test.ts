@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { absoluteTime, listAsText, previewLine, relativeTime, spineColor } from './format'
+import {
+  absoluteTime,
+  highlightRuns,
+  listAsText,
+  previewLine,
+  relativeTime,
+  spineColor,
+} from './format'
 import { backupFileName } from './cloud/backup'
 
 const NOW = Date.UTC(2026, 7, 2, 12, 0, 0)
@@ -40,13 +47,13 @@ describe('absoluteTime', () => {
     expect(absoluteTime(new Date(2026, 11, 31, 0, 0).getTime())).toBe('2026-12-31 00:00')
   })
 
-  // Shown next to a list of backup file names, so the two carry the same fields off the
-  // same clock. A status line that disagreed with the file it names would be worse than
-  // no absolute time at all.
-  it('carries the same fields as a backup file name', () => {
-    const at = new Date(2026, 7, 2, 14, 31, 59)
+  // Shown next to a list of backup file names, off the same clock and in the same order,
+  // so a status line can be matched against the file it refers to. The file name carries
+  // seconds and milliseconds on top, to stay unique; a status line has no use for those.
+  it('is the leading fields of a backup file name', () => {
+    const at = new Date(2026, 7, 2, 14, 31, 59, 123)
     expect(absoluteTime(at.getTime())).toBe('2026-08-02 14:31')
-    expect(backupFileName(at)).toBe('backup-2026-08-02-1431.json')
+    expect(backupFileName(at)).toBe('backup-2026-08-02-143159-123.json')
   })
 })
 
@@ -69,6 +76,39 @@ describe('spineColor', () => {
   it('is transparent from 180 days onward', () => {
     expect(spineColor(ago(180 * DAY), false, NOW)).toBe('transparent')
     expect(spineColor(ago(2000 * DAY), true, NOW)).toBe('transparent')
+  })
+})
+
+describe('highlightRuns', () => {
+  it('is one plain run when there is nothing to match', () => {
+    expect(highlightRuns('Milk', '')).toEqual([{ text: 'Milk', hit: false }])
+    expect(highlightRuns('Milk', '   ')).toEqual([{ text: 'Milk', hit: false }])
+    expect(highlightRuns('Milk', 'eggs')).toEqual([{ text: 'Milk', hit: false }])
+  })
+
+  it('marks every occurrence, ignoring case', () => {
+    expect(highlightRuns('Milk chocolate milk', 'milk')).toEqual([
+      { text: 'Milk', hit: true },
+      { text: ' chocolate ', hit: false },
+      { text: 'milk', hit: true },
+    ])
+  })
+
+  it('keeps the original casing of the matched text', () => {
+    expect(highlightRuns('MILK', 'milk')).toEqual([{ text: 'MILK', hit: true }])
+  })
+
+  // Concatenating the runs must give back exactly the input, or the tile would render a
+  // name that is not the list's name.
+  it('is lossless for any query', () => {
+    const name = 'Milky Way milk'
+    for (const q of ['m', 'milk', 'y w', 'Milky Way milk', 'z']) {
+      expect(
+        highlightRuns(name, q)
+          .map((r) => r.text)
+          .join(''),
+      ).toBe(name)
+    }
   })
 })
 

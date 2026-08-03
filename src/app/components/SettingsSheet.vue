@@ -90,8 +90,15 @@ export default {
     backUpNow() {
       cloudApi.backupNow()
     },
+    /**
+     * Confirmed first, and by the same dialog machinery as every other irreversible act.
+     *
+     * Reconnecting is a full sign-in at Dropbox rather than a second tap, and there is no
+     * undo entry for it — an accidental press here costs real work, unlike the two
+     * buttons beside it.
+     */
     disconnectCloud() {
-      cloudApi.disconnect()
+      openLayer({ dialog: 'cloud-disconnect' })
     },
   },
 }
@@ -189,6 +196,16 @@ export default {
           </div>
           <p class="cloud-note">{{ unavailableReason }}</p>
         </template>
+
+        <!--
+          The sign-in comes back to this sheet, so the exchange happens with the card on
+          screen. Without this it renders "Connect Dropbox" again for the second or two
+          that takes, which reads as a round trip that achieved nothing.
+        -->
+        <div v-else-if="!cloud.connected && cloud.busy" class="status">
+          <span class="label">Dropbox</span>
+          <span class="hint">Finishing sign-in…</span>
+        </div>
 
         <button
           v-else-if="!cloud.connected"

@@ -29,6 +29,7 @@ const DIALOGS = new Set([
   'import',
   'import-text',
   'cloud-restore',
+  'cloud-disconnect',
   'about',
 ])
 
@@ -48,7 +49,7 @@ const DIALOG_ARGS = ['cid', 'qty']
 
 export function installNavigation(instance) {
   router = instance
-  router.afterEach((to) => syncUi(to))
+  router.afterEach((to, from) => syncUi(to, from))
 }
 
 /* --------------------------------------------------------------------- reading */
@@ -59,8 +60,12 @@ export function installNavigation(instance) {
  * Ephemeral detail that would be noise in a URL — the search text, the checkbox
  * selection — is deliberately not restored; only the fact that the layer is open is.
  * Each is cleared here when its layer closes, so no path can leave it stranded.
+ *
+ * The one place this projection also WRITES to the URL is a search layer that has outlived
+ * its text (see `staleSearch`), where the honest reading of the URL is that it is out of
+ * date rather than that the box should be empty.
  */
-function syncUi(route) {
+function syncUi(route, from) {
   const q = route.query
   const onList = route.name === 'list'
 
@@ -78,13 +83,44 @@ function syncUi(route) {
   ui.dialogArg =
     dialog === 'quantity' ? { cid: String(q.cid ?? ''), value: clampQty(Number(q.qty)) } : null
 
-  const searching = 'search' in q
+  const searching = 'search' in q && !staleSearch(route, from)
   if (!searching) closeSearch()
   ui.searchOpen = searching
+  // The URL still says the layer is open, so bring it into line. Doing this from here
+  // rather than leaving it is what keeps the projection honest; the replacement carries no
+  // `search`, so the navigation it triggers cannot come back through this branch.
+  if ('search' in q && !searching) dropLayer('search')
 
   const selecting = 'select' in q
   if (!selecting) exitSelection()
   ui.selecting = selecting
+}
+
+/**
+ * A search layer that arrived on a different screen with nothing typed has outlived its
+ * text, and is dropped rather than reopened as an empty box.
+ *
+ * The text is not in the URL, so an entry that was left while searching comes back blank —
+ * a search field open over unfiltered results, asking a question the user already answered
+ * and left. It happens on the way back from a list opened out of a search whose text was
+ * then cleared there, and on any reload of `?search`.
+ *
+ * The test is the SCREEN, because opening search never changes it: tapping the magnifier
+ * adds the flag to the screen already showing, so an empty box there is one the user is
+ * about to type into. Arriving on a different screen with the flag and no text is the only
+ * way to get one nobody asked for. A search carried into a list by `openList` still has
+ * its text, and so is not stale.
+ */
+function staleSearch(to, from) {
+  if (ui.query !== '') return false
+  return to.name !== from.name || String(to.params.id ?? '') !== String(from.params.id ?? '')
+}
+
+/** Rewrite the current entry without `key`. Never a new entry: the layer is not history. */
+function dropLayer(key) {
+  const query = { ...router.currentRoute.value.query }
+  delete query[key]
+  return router.replace({ query })
 }
 
 /* ------------------------------------------------------------------- navigating */

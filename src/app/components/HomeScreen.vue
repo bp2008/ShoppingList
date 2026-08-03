@@ -54,6 +54,7 @@ export default {
         :key="list.id"
         :list="list"
         :now="now"
+        :query="ui.query"
         @click="open(list.id)"
       />
     </div>

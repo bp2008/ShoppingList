@@ -5,6 +5,7 @@ import ExportDialog from './ExportDialog.vue'
 import ImportDialog from './ImportDialog.vue'
 import TextImportDialog from './TextImportDialog.vue'
 import * as store from '../core/store'
+import * as cloudApi from '../core/cloud'
 import { clampQty } from '../core/types'
 import { ui, showToast } from '../ui/state'
 import { goHome } from '../ui/navigation'
@@ -23,7 +24,18 @@ import { goHome } from '../ui/navigation'
  */
 
 /** Kinds this component draws itself. Anything else dispatches above. */
-const SIMPLE = ['new-list', 'add-catalog', 'quantity', 'rename', 'delete-list', 'about']
+const SIMPLE = [
+  'new-list',
+  'add-catalog',
+  'quantity',
+  'rename',
+  'delete-list',
+  'cloud-disconnect',
+  'about',
+]
+
+/** Kinds whose primary button is destructive, and is coloured to say so. */
+const DESTRUCTIVE = ['delete-list', 'cloud-disconnect']
 
 export default {
   name: 'Dialogs',
@@ -58,6 +70,7 @@ export default {
         quantity: 'Quantity',
         rename: 'Rename list',
         'delete-list': 'Delete list',
+        'cloud-disconnect': 'Disconnect Dropbox',
         about: 'About',
       }[this.kind]
     },
@@ -68,8 +81,12 @@ export default {
         quantity: 'Set',
         rename: 'Rename',
         'delete-list': 'Delete',
+        'cloud-disconnect': 'Disconnect',
         about: 'Close',
       }[this.kind]
+    },
+    destructive() {
+      return DESTRUCTIVE.includes(this.kind)
     },
   },
   mounted() {
@@ -140,6 +157,11 @@ export default {
           // then leaving would be two navigations racing over the same history entry.
           goHome()
           return
+        case 'cloud-disconnect':
+          // Resolves even when the revoke cannot reach Dropbox, so the dialog closes on
+          // the same tick either way and the card reports the outcome in its own time.
+          void cloudApi.disconnect()
+          break
         default:
           break
       }
@@ -185,6 +207,17 @@ export default {
       The list and its catalog are removed. You can undo this.
     </p>
 
+    <!--
+      Says what survives as well as what stops, because the alarming reading of
+      "disconnect" is that the backups go with it. They do not: they are files in the
+      user's own Dropbox and this app has never been able to reach anything else.
+    -->
+    <p v-else-if="kind === 'cloud-disconnect'" class="body">
+      This device stops backing up, and Shopping List gives up its access to your Dropbox.
+      The backups already there are kept — you can reconnect and restore from them at any
+      time.
+    </p>
+
     <template v-else-if="kind === 'about'">
       <p class="body">
         Shopping List v{{ version }}<br />
@@ -217,7 +250,7 @@ export default {
       </button>
       <button
         class="primary tap"
-        :class="{ danger: kind === 'delete-list' }"
+        :class="{ danger: destructive }"
         type="button"
         @click="kind === 'about' ? $emit('close') : submit()"
       >

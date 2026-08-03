@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { filterLists, foreignCatalog, listPreview, listsByRecency, sortedCatalog } from './selectors'
+import {
+  catalogHits,
+  filterLists,
+  foreignCatalog,
+  listPreview,
+  listsByRecency,
+  sortedCatalog,
+} from './selectors'
 import type { List } from './types'
 
 function list(partial: Partial<List> & { id: string; name: string }): List {
@@ -93,6 +100,34 @@ describe('filterLists', () => {
 
   it('returns everything for an empty query', () => {
     expect(filterLists(lists, '   ')).toHaveLength(2)
+  })
+})
+
+describe('catalogHits', () => {
+  const l = list({
+    id: 'a',
+    name: 'Groceries',
+    catalog: [
+      { id: '1', name: 'Oat milk' },
+      { id: '2', name: 'Bread' },
+      { id: '3', name: 'Milk' },
+    ],
+  })
+
+  it('is empty without a query', () => {
+    expect(catalogHits(l, '')).toEqual([])
+    expect(catalogHits(l, '  ')).toEqual([])
+  })
+
+  it('returns every match, alphabetically', () => {
+    expect(catalogHits(l, 'milk')).toEqual(['Milk', 'Oat milk'])
+  })
+
+  // The reason it exists: a tile can match on something no preview line would show,
+  // because the catalog is not the list.
+  it('finds items the list is not holding', () => {
+    expect(l.items).toHaveLength(0)
+    expect(catalogHits(l, 'bread')).toEqual(['Bread'])
   })
 })
 

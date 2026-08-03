@@ -1,7 +1,7 @@
 <script>
 import DialogShell from './DialogShell.vue'
 import { fetchBackup, listBackups } from '../core/cloud'
-import { relativeTime } from '../core/format'
+import { absoluteTime, relativeTime } from '../core/format'
 import { ui } from '../ui/state'
 import { replaceLayer } from '../ui/navigation'
 
@@ -38,8 +38,17 @@ export default {
     }
   },
   methods: {
+    /**
+     * Both clocks. "Yesterday" is enough to find the file you want nine times out of ten,
+     * and useless for the tenth — choosing between two snapshots taken either side of the
+     * change you are trying to undo, which is what this list is for.
+     *
+     * From `server_modified`, not from the name: a file the user renamed by hand still
+     * dates correctly, and the two would only ever disagree if it had been rewritten.
+     */
     when(file) {
-      return file.modified ? relativeTime(file.modified) : ''
+      if (!file.modified) return ''
+      return `${relativeTime(file.modified)} · ${absoluteTime(file.modified)}`
     },
     size(file) {
       return `${Math.max(1, Math.round(file.size / 1024))} KB`

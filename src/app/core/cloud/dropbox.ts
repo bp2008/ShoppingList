@@ -1,10 +1,10 @@
 /**
  * The Dropbox API surface this app uses, as raw `fetch`.
  *
- * NO SDK ON PURPOSE. The official JavaScript SDK is a large dependency for six endpoints,
- * and this bundle is precached on a phone and expected to work offline forever -- the
- * whole app has three runtime dependencies. What is here is the complete set: authorise,
- * exchange, refresh, upload, list, download, delete, whoami.
+ * NO SDK ON PURPOSE. The official JavaScript SDK is a large dependency for a handful of
+ * endpoints, and this bundle is precached on a phone and expected to work offline forever
+ * -- the whole app has three runtime dependencies. What is here is the complete set:
+ * authorise, exchange, refresh, revoke, upload, list, download, delete, whoami.
  *
  * Every call funnels its failures into a `CloudError` carrying a `kind`, because the
  * caller's decision is only ever one of three: reconnect (auth), try again later
@@ -122,6 +122,16 @@ export function authorizeUrl(challenge: string, state: string, redirectUri: stri
     // The whole reason Dropbox was chosen: this is what yields a refresh token that a
     // browser-only client may hold, so backups can run without an interactive sign-in.
     token_access_type: 'offline',
+    /*
+     * ALWAYS SHOW THE APPROVAL SCREEN.
+     *
+     * The grant lives on Dropbox's side and outlives anything this app forgets, so an
+     * account that has approved this app once is otherwise bounced straight back with a
+     * fresh code -- connecting looks like it did nothing, and there is no moment at which
+     * a different account could be chosen. `disconnect` revokes the grant, which fixes
+     * that too, but only when it reaches the network; this does not depend on it.
+     */
+    force_reapprove: 'true',
     redirect_uri: redirectUri,
     state,
   })
@@ -172,6 +182,25 @@ export function refreshAccessToken(refreshToken: string): Promise<TokenSet> {
     refresh_token: refreshToken,
     client_id: APP_KEY,
   })
+}
+
+/**
+ * Unlink this app from the account: the access token, its refresh token, and the approval.
+ *
+ * Disconnecting has to mean this, not merely forgetting our copy of the credential. What
+ * we hold locally is only half of the connection — the other half is a grant on the
+ * account, which stays live, keeps this app listed under the user's connected apps, and
+ * would let the next sign-in through without a word.
+ *
+ * Not `rpc()`: a revoke answers 200 with an empty body, which `res.json()` would throw on.
+ * The files are untouched — they are in the user's own Dropbox and are theirs to keep.
+ */
+export async function revokeToken(accessToken: string): Promise<void> {
+  const res = await send(RPC_BASE + 'auth/token/revoke', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw await failure(res)
 }
 
 /* ------------------------------------------------------------------------------- rpc */
@@ -234,8 +263,9 @@ export async function deleteFile(accessToken: string, path: string): Promise<voi
 
 /**
  * `mode: 'add'` with `autorename: false` so an upload can never overwrite an existing
- * snapshot. Names carry the minute, so a genuine collision means two backups in the same
- * minute, and failing that second one is correct -- the first already holds the data.
+ * snapshot: a name that is already taken fails with a 409 rather than replacing whatever
+ * is there. Names carry the millisecond (see `backupFileName`), so that outcome now means
+ * something genuinely strange rather than two backups in the same minute.
  */
 export async function upload(accessToken: string, path: string, text: string): Promise<void> {
   const res = await send(CONTENT_BASE + 'files/upload', {
