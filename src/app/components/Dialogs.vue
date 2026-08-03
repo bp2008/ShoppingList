@@ -211,12 +211,33 @@ export default {
       Says what survives as well as what stops, because the alarming reading of
       "disconnect" is that the backups go with it. They do not: they are files in the
       user's own Dropbox and this app has never been able to reach anything else.
+
+      The second paragraph is here because the obvious way to check a disconnect is to go
+      and look at Settings › Apps, where the entry will still be. Dropbox draws a hard line
+      between revoking TOKENS, which an app may do for itself, and revoking an
+      AUTHORISATION, which only the account holder can do -- there is no API for the
+      latter. Saying so is the difference between a leftover row reading as a lie and
+      reading as the way Dropbox works.
     -->
-    <p v-else-if="kind === 'cloud-disconnect'" class="body">
-      This device stops backing up, and Shopping List gives up its access to your Dropbox.
-      The backups already there are kept — you can reconnect and restore from them at any
-      time.
-    </p>
+    <template v-else-if="kind === 'cloud-disconnect'">
+      <p class="body">
+        This device stops backing up, and Shopping List revokes its access to your Dropbox.
+        The backups already there are kept — you can reconnect and restore from them at any
+        time.
+      </p>
+      <p class="body">
+        Afterwards, Dropbox will still list this app under Dropbox Settings &gt; Apps. No app can take
+        itself off that list; you must remove it manually if you want it gone.
+      </p>
+      <a
+        class="external tap"
+        href="https://www.dropbox.com/account/connected_apps"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        dropbox.com › Settings › Apps
+      </a>
+    </template>
 
     <template v-else-if="kind === 'about'">
       <p class="body">
@@ -224,14 +245,8 @@ export default {
         Offline-first. Your lists are stored on this device, and go nowhere else unless you
         turn on cloud backup.
       </p>
-      <!--
-        `target="_blank"` is what hands this to the real browser. An installed app has no
-        address bar and no tabs, so following a link in place would strand the user on a
-        page they cannot leave except by Back, with nothing on screen saying where they
-        are. `rel` because a new context must never get a handle on this one.
-      -->
       <a
-        class="repo tap"
+        class="external tap"
         href="https://github.com/bp2008/ShoppingList"
         target="_blank"
         rel="noopener noreferrer"
@@ -278,11 +293,16 @@ export default {
 }
 
 /*
- * A row of its own rather than a run of text: it is the one tap target in this dialog, and
- * the negative margin pulls its label back into line with the paragraph above so that the
- * padding buying it a finger-sized height does not show as an indent.
+ * A link that leaves for the browser, as a row of its own rather than a run of text: it is
+ * a tap target, and the negative margin pulls its label back into line with the paragraph
+ * above so that the padding buying it a finger-sized height does not show as an indent.
+ *
+ * Every one of these carries `target="_blank"`, which is what hands the URL to the real
+ * browser. An installed app has no address bar and no tabs, so following a link in place
+ * would strand the user on a page they cannot leave except by Back, with nothing on screen
+ * saying where they are. `rel` because a new context must never get a handle on this one.
  */
-.repo {
+.external {
   display: inline-flex;
   align-items: center;
   min-height: 40px;

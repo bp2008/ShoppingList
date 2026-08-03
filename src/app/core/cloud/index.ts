@@ -412,16 +412,20 @@ export function fetchBackup(path: string): Promise<string> {
 /**
  * Hand the credential back before forgetting it.
  *
- * Deleting our copy of the refresh token is only half of a disconnect: the approval it
- * came from lives on the Dropbox account, and while it stands this app is still listed
- * among the user's connected apps and the next sign-in is waved through without ever
- * showing a Dropbox page. Revoking is what makes "Disconnect" mean what it says, and what
- * makes connecting a *different* account possible afterwards.
+ * Deleting our copy of the refresh token is only half of a disconnect: unrevoked, it stays
+ * a live key to the account that nobody is holding any more. `revokeToken` is the other
+ * half, and it is as far as an app is allowed to go -- the AUTHORISATION itself can only be
+ * revoked by the account holder from Connected apps, so the app stays listed there and in
+ * the App Console's user count no matter what this does. See `api.revokeToken`; the
+ * disconnect dialog tells the user, because that page is where they will go to check.
+ *
+ * This is also why `authorizeUrl` cannot rely on revocation to force the approval screen,
+ * and asks for it unconditionally instead.
  *
  * THE LOCAL HALF HAPPENS EITHER WAY, and a remote half that did not happen is REPORTED. A
- * user disconnecting on a plane still gets disconnected, and is told that the account has
- * not been told, because there is no way for them to find that out afterwards -- the app
- * is gone from this screen and the grant is invisible from here.
+ * user disconnecting on a plane still gets disconnected, and is told that the token was not
+ * revoked, because there is no way for them to find that out afterwards -- the app is gone
+ * from this screen and a live token is invisible from here.
  *
  * Backups are deliberately left alone. Revoking removes this app's access, not the user's
  * own files.

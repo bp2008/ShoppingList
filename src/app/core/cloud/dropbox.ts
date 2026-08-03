@@ -125,11 +125,12 @@ export function authorizeUrl(challenge: string, state: string, redirectUri: stri
     /*
      * ALWAYS SHOW THE APPROVAL SCREEN.
      *
-     * The grant lives on Dropbox's side and outlives anything this app forgets, so an
-     * account that has approved this app once is otherwise bounced straight back with a
-     * fresh code -- connecting looks like it did nothing, and there is no moment at which
-     * a different account could be chosen. `disconnect` revokes the grant, which fixes
-     * that too, but only when it reaches the network; this does not depend on it.
+     * The authorisation lives on the Dropbox account and outlives everything this app can
+     * do -- disconnecting revokes tokens, but no API removes the authorisation itself, so
+     * an account that has approved this app once stays approved forever. Without this
+     * parameter it is therefore bounced straight back with a fresh code: connecting looks
+     * like it did nothing, and there is no moment at which a different account could be
+     * chosen. THIS is what makes the round trip visible, not the revoke.
      */
     force_reapprove: 'true',
     redirect_uri: redirectUri,
@@ -185,15 +186,20 @@ export function refreshAccessToken(refreshToken: string): Promise<TokenSet> {
 }
 
 /**
- * Unlink this app from the account: the access token, its refresh token, and the approval.
+ * Revoke the token this call is made with, and the refresh token it came from.
  *
- * Disconnecting has to mean this, not merely forgetting our copy of the credential. What
- * we hold locally is only half of the connection — the other half is a grant on the
- * account, which stays live, keeps this app listed under the user's connected apps, and
- * would let the next sign-in through without a word.
+ * Disconnecting has to do this, not merely forget our copy of the credential: a refresh
+ * token we have thrown away but not revoked is a live key to the account that nobody can
+ * account for any more.
+ *
+ * IT DOES NOT UNLINK THE APP, and no API does. Dropbox separates revoking TOKENS, which an
+ * app may do for itself, from revoking an AUTHORISATION, which only the account holder can
+ * do from Connected apps in their account settings -- so the entry there, and the App
+ * Console's user count, both survive this call. The disconnect dialog says so, because the
+ * obvious way to check a disconnect is to go and look at that page.
  *
  * Not `rpc()`: a revoke answers 200 with an empty body, which `res.json()` would throw on.
- * The files are untouched — they are in the user's own Dropbox and are theirs to keep.
+ * The files are untouched -- they are in the user's own Dropbox and are theirs to keep.
  */
 export async function revokeToken(accessToken: string): Promise<void> {
   const res = await send(RPC_BASE + 'auth/token/revoke', {

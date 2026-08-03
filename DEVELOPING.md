@@ -718,28 +718,32 @@ local record of it did not. Names written before the seconds existed are still m
 
 ### Connecting, and disconnecting
 
-`disconnect()` revokes the token at Dropbox before forgetting it locally. The credential on
-this device is only half the connection; the other half is a grant on the account, and
-leaving it standing means the app is still listed under the user's connected apps and the
-next sign-in is waved through with no Dropbox page shown at all. `/2/auth/token/revoke`
-takes the access token and, per Dropbox, revokes "the corresponding refresh token, if any"
-with it.
+`disconnect()` revokes the token at Dropbox before forgetting it locally. A refresh token
+that has been thrown away but not revoked is a live key to the account that nobody is
+holding any more. `/2/auth/token/revoke` takes the access token and, per Dropbox, revokes
+"the corresponding refresh token, if any" with it.
 
 The local half happens even when the revoke fails, and the failure is then **reported** —
 there is no way for the user to discover it otherwise, since the app has vanished from the
-card and the grant is not visible from inside the app. An `auth` failure is the exception
+card and a live token is invisible from inside the app. An `auth` failure is the exception
 and counts as success: a credential that cannot be refreshed has already been revoked at
 the other end.
 
-**Do not use the App Console's "Development users" count to check any of this.** It counts
-users the app has ever linked and does not go down — "simply unlinking all of your users
-will not unfreeze your app", in Dropbox's words. The live authorisation shows up under
-Connected apps in the user's own account settings.
+> **Revoking does not unlink the app, and no API can.** Dropbox separates revoking *tokens*,
+> which an app may do for itself, from revoking an *authorisation*, which only the account
+> holder can do from Connected apps in their account settings. So after a perfectly
+> successful disconnect the app is still listed there, and the App Console still counts the
+> user. This is not a bug in `disconnect()` and it is not worth another attempt at fixing —
+> the disconnect dialog says so plainly instead, and links to the page, because that page is
+> where anyone checking a disconnect will go. (The App Console count does track live
+> authorisations: it drops when the user unlinks there. What it does *not* do is un-freeze
+> an app that has hit the 50-user threshold.)
 
-For the same reason `authorizeUrl` sends `force_reapprove=true`: the approval screen is
-where the user sees which account they are about to link, and it is the only opportunity to
-pick a different one. Without it, an account that has approved this app once is redirected
-straight back with a fresh code and the whole round trip is invisible.
+`authorizeUrl` therefore cannot lean on revocation to make the round trip visible, and sends
+`force_reapprove=true` instead. The approval screen is where the user sees which account
+they are about to link, and it is the only opportunity to pick a different one; without it,
+an account that has approved this app once — which is now *permanent* — is redirected
+straight back with a fresh code and connecting looks like it did nothing at all.
 
 The sign-in returns to a registered redirect URI, which is the bare directory and carries no
 hash, so `captureRedirect` rewrites the hash to `#/?settings` on the way in. The app then
