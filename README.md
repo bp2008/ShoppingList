@@ -35,65 +35,56 @@ into this list's catalog, leaving the original alone.
 
 ## Works without an internet connection
 
-The app is installable and fully offline. Once you have opened it, it does not need the
+The app is installable and usable fully offline. Once you have opened it, it does not need the
 network again — not to start, not to load, not to save.  Updates are automatic and are 
 handled carefully with the ability to roll back if you get a bad update.
 
-## Your data
+## Privacy
 
-Everything is stored on your device. There is no server of ours anywhere in the picture,
-and by default nothing leaves the phone at all.
+Your shopping lists and settings are stored in your web browser's sandboxed storage.  Nothing leaves your device unless you want it to.
 
-**Settings → Your data** has import and export:
+Clearing your browser's site data for `bp2008.github.io` deletes your shopping lists.  Back them up first if you care about them.
 
-- **Export lists…** — tick the lists you want, then copy them to the clipboard or save
-  them as a JSON file.
-- **Import lists…** — paste, or load a file, then tick what to bring in. If a list you are
-  importing has the same name as one you already have, you choose: **merge** adds whatever
-  is missing and changes nothing else, **overwrite** replaces that list entirely. Either
-  way it is one undo away.
+## Cloud backup (recommended)
 
-On a list, the menu also has **Add items from text…**, for pasting a plain list of names —
-one per line. A Google Keep checklist pastes in as-is: `[ ]` and `[X]` are understood, and
-anything already ticked goes into the catalog without joining your list. It only ever adds;
-nothing is removed and no quantity changes. **Copy list as text** is the other direction,
-putting a shopping list on the clipboard in a form you can paste into a message.
+This app cannot store files on your device in a way that is backed up automatically by Android or iOS.  Your shopping lists are stored in your web browser's sandboxed internal storage, which is typically not backed up or synchronized between devices.
 
-Uninstalling the app, or clearing your browser's site data, deletes your lists. Export
-first if you care about them.
+**[[Dropbox]](https://www.dropbox.com/)** is the only supported cloud backup service, because they have a simple API that works well with a serverless Progressive Web App like this one.  It is free to sign up for Dropbox, and this app requires very little storage space.
 
-## Cloud backup
-
-Optional, off until you turn it on, and Dropbox only. **Settings → Cloud backup → Connect
+ **Settings → Cloud backup → Connect
 Dropbox** signs you in once; after that the app quietly saves a snapshot to a folder of its
 own — `Apps/Shopping List by bp2008/` — whenever your lists have changed and it has been a
-few hours since the last one. The last ten are kept.
+few hours since the last backup. The last 60 backups are kept.
 
-It is a backup, not sync. Nothing is ever pulled down on its own: **Restore…** lists your
-snapshots, and picking one hands it to the same import screen a pasted file would go
-through, so you still choose which lists to bring in and whether to merge or overwrite —
-and it is still one undo away.
+It is a backup, not two-way sync.  Restoring a backup must be performed via the **Restore…** button.
 
-The snapshots are ordinary export files. You can open one in your Dropbox and read it, or
-paste it into **Import lists…** by hand if you would rather not use the restore screen.
-Disconnecting forgets the account on this device and leaves every snapshot where it is.
+The snapshots stored in Dropbox are ordinary JSON-formatted export files. You can open one in your Dropbox and read it, or
+paste it into **Import lists…** by hand if you'd like to restore on a device that isn't connected to your Dropbox account.
+
+Disconnecting from dropbox forgets the account on this device and does not delete any backups from Dropbox.
 
 The app can only see its own folder, never the rest of your Dropbox.
 
-If you are running your own copy of this project rather than the link at the top, cloud
-backup will show greyed out and say so. Dropbox only accepts sign-in from addresses
+If you are running your own copy of this project rather than the link at the top of this page, cloud
+backup will show greyed out and explain why it is disabled. Dropbox only accepts sign-in from addresses
 registered against the app, so a copy served from anywhere else cannot use it — you would
-need your own Dropbox app and your own address in `REDIRECT_URIS`. Export and import work
+need your own Dropbox app key and your own address in `REDIRECT_URIS`. Export and import work
 normally either way.
+
+## Import / Export
+
+**Settings → Your data** can manually import and export any or all of your shopping lists.
+
+You can also import and export items from individual lists as simple plain text.  For example this makes it easy to migrate a list from Google Keep to this Shopping List app.
 
 ## Known feature gaps
 
 - **Accessibility.** Dragging is currently the only way to move items, so the app cannot be
   used with a keyboard or a screen reader. This is the biggest gap and it is understood.
-- **No sync.** Cloud backup copies this device's lists *up*; it never merges two devices.
-  Moving to a new phone is a restore, done once, by hand.
-- **Cloud backup is untested on iPhone.** The sign-in leaves the app and comes back, which
-  an installed iOS web app may not survive. If it fails there the app says so and points
+- **No sync.** Cloud backup copies this device's lists *up*; it never automatically syncs or merges two devices.
+  Moving to a new phone requires a restore operation, done once, by hand.
+- **Cloud backup is untested on iPhone.** The sign-in to Dropbox leaves the app and comes back, which
+  is untested on an installed progressive web app on iOS. If it fails there, the app says so and points
   you at export; everything else works as normal.
 
 ## Building it yourself
