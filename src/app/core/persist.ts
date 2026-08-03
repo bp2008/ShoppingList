@@ -16,6 +16,16 @@ const DOC_KEY = 'doc'
 const BACKUP_KEY = 'backup:preMigration'
 
 /**
+ * Cloud connection state, deliberately OUTSIDE the document.
+ *
+ * It is not user data: it holds a device-local credential, it must never end up inside an
+ * export, and putting it in `doc` would change the shape the rescue path reads and force a
+ * schema migration for something no list depends on. A separate key costs nothing and
+ * keeps the contract above untouched.
+ */
+const CLOUD_KEY = 'cloud'
+
+/**
  * Opened on first use, not at import.
  *
  * `createStore` calls `indexedDB.open` immediately, so binding it at module scope would
@@ -96,6 +106,20 @@ export async function writeBackup(raw: unknown): Promise<void> {
 
 export async function readBackup(): Promise<unknown> {
   return get(BACKUP_KEY, db())
+}
+
+/* ------------------------------------------------------------------------- cloud */
+/*
+ * Written rarely -- on connect, on disconnect, and once per successful backup -- so these
+ * bypass the debounce entirely and just write.
+ */
+
+export async function loadCloud(): Promise<unknown> {
+  return get(CLOUD_KEY, db())
+}
+
+export async function saveCloud(value: unknown): Promise<void> {
+  await set(CLOUD_KEY, value, db())
 }
 
 /**

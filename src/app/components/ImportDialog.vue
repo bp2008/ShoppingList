@@ -3,7 +3,7 @@ import DialogShell from './DialogShell.vue'
 import ListChoice from './ListChoice.vue'
 import * as store from '../core/store'
 import { parseTransfer } from '../core/transfer'
-import { showToast } from '../ui/state'
+import { ui, showToast } from '../ui/state'
 
 /**
  * Import lists from exported JSON, in two steps.
@@ -45,7 +45,19 @@ export default {
       return this.chosen.length
     },
   },
+  /**
+   * A cloud restore arrives already holding the JSON, so it skips straight to the
+   * decisions. Everything after this point is the paste path, unchanged — which is the
+   * whole point: a restore is an import, and gets the same merge/overwrite choice, the
+   * same single commit, and the same one-press undo.
+   */
   mounted() {
+    if (ui.pendingImportText) {
+      this.text = ui.pendingImportText
+      ui.pendingImportText = ''
+      this.read()
+      return
+    }
     this.$nextTick(() => this.$refs.field?.focus())
   },
   methods: {

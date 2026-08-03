@@ -28,6 +28,7 @@ const DIALOGS = new Set([
   'export',
   'import',
   'import-text',
+  'cloud-restore',
   'about',
 ])
 

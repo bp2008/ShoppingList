@@ -1,5 +1,7 @@
 <script>
 import * as store from '../core/store'
+import * as cloudApi from '../core/cloud'
+import { relativeTime } from '../core/format'
 import { UNDO_LIMIT } from '../core/types'
 import { openLayer } from '../ui/navigation'
 
@@ -7,7 +9,16 @@ export default {
   name: 'SettingsSheet',
   emits: ['close'],
   data() {
-    return { state: store.state, UNDO_LIMIT }
+    return {
+      state: store.state,
+      UNDO_LIMIT,
+      cloud: cloudApi.cloud,
+      // 'ready' | 'no-key' | 'wrong-address'. The card is shown either way; the two
+      // unavailable states grey it out and say why, so a fork or a local copy is not left
+      // guessing at a control that quietly does nothing.
+      cloudState: cloudApi.availability(),
+      cloudAddress: cloudApi.currentAddress(),
+    }
   },
   computed: {
     rowHeight: {
@@ -17,6 +28,29 @@ export default {
       set(v) {
         store.setRowHeight(Number(v))
       },
+    },
+    backupStatus() {
+      if (this.cloud.busy) return 'Working…'
+      if (!this.cloud.lastBackupAt) return 'No backup yet'
+      return `Last backup ${relativeTime(this.cloud.lastBackupAt).toLowerCase()}`
+    },
+    // Where cloud backup cannot run, the footer must not promise it.
+    dataNote() {
+      return this.cloudState === 'ready'
+        ? 'Your lists live on this device; an export, or a cloud backup, is the only copy there is.'
+        : 'All data is stored on this device only, so an export is the only backup there is.'
+    },
+
+    /**
+     * Why the card is greyed out. Names the actual cause rather than a single vague
+     * message: the two reasons are fixed in completely different places, and a forker
+     * told only "not configured" would go looking in the wrong one.
+     */
+    unavailableReason() {
+      if (this.cloudState === 'no-key') {
+        return 'Dropbox backup is not configured in this release — it was built without a Dropbox app key.'
+      }
+      return `Dropbox backup is not configured for this address. Sign-in only works from the addresses registered with Dropbox, and ${this.cloudAddress} is not one of them.`
     },
   },
   methods: {
@@ -37,6 +71,17 @@ export default {
      */
     openTransfer(kind) {
       openLayer({ dialog: kind })
+    },
+
+    /* Every one of these resolves even on failure; the message lands in `cloud.error`. */
+    connectCloud() {
+      cloudApi.beginConnect()
+    },
+    backUpNow() {
+      cloudApi.backupNow()
+    },
+    disconnectCloud() {
+      cloudApi.disconnect()
     },
   },
 }
@@ -116,10 +161,70 @@ export default {
         </button>
       </section>
 
-      <p class="note">
-        Undo history keeps the last {{ UNDO_LIMIT }} actions. All data is stored on this device
-        only, so an export is the only backup there is.
-      </p>
+      <section class="card">
+        <h2>Cloud backup</h2>
+
+        <!--
+          Inert, but deliberately still here. A plain div rather than a disabled button:
+          there is nothing to focus and nothing to press, and the explanation below is the
+          part that matters.
+        -->
+        <template v-if="cloudState !== 'ready'">
+          <div class="link-row off">
+            <span class="texts">
+              <span class="label">Connect Dropbox</span>
+              <span class="hint">Backs up automatically to a folder of its own</span>
+            </span>
+            <span class="chev">›</span>
+          </div>
+          <p class="cloud-note">{{ unavailableReason }}</p>
+        </template>
+
+        <button
+          v-else-if="!cloud.connected"
+          class="link-row tap"
+          type="button"
+          @click="connectCloud"
+        >
+          <span class="texts">
+            <span class="label">Connect Dropbox</span>
+            <span class="hint">Backs up automatically to a folder of its own</span>
+          </span>
+          <span class="chev">›</span>
+        </button>
+
+        <template v-else>
+          <div class="status">
+            <span class="label">{{ cloud.accountEmail || 'Dropbox' }}</span>
+            <span class="hint">{{ backupStatus }}</span>
+          </div>
+          <div class="actions">
+            <button class="act tap" type="button" :disabled="cloud.busy" @click="backUpNow">
+              Back up now
+            </button>
+            <button
+              class="act tap"
+              type="button"
+              :disabled="cloud.busy"
+              @click="openTransfer('cloud-restore')"
+            >
+              Restore…
+            </button>
+            <button
+              class="act tap danger"
+              type="button"
+              :disabled="cloud.busy"
+              @click="disconnectCloud"
+            >
+              Disconnect
+            </button>
+          </div>
+        </template>
+
+        <p v-if="cloud.error" class="cloud-error">{{ cloud.error }}</p>
+      </section>
+
+      <p class="note">Undo history keeps the last {{ UNDO_LIMIT }} actions. {{ dataNote }}</p>
     </div>
   </div>
 </template>
@@ -320,6 +425,64 @@ input[type='range'] {
 
 .toggle.on i {
   left: 18px;
+}
+
+/* Same two-line shape as a link row, but nothing here is a control. */
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 46px;
+  padding: 6px 0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.act {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 6px;
+  font: 500 12.5px var(--font);
+  color: var(--text2);
+  background: var(--chip);
+  border: 1.5px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.act:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.act.danger {
+  color: var(--danger);
+}
+
+:where(html[data-input='mouse']) .act:not(:disabled):hover {
+  border-color: var(--line);
+}
+
+/* Greyed out, not hidden — the row still says what the feature would be. */
+.link-row.off {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.cloud-note {
+  margin: 6px 0 0;
+  font: 400 11.5px/1.45 var(--font);
+  color: var(--text3);
+}
+
+.cloud-error {
+  margin: 10px 0 0;
+  font: 500 11.5px/1.4 var(--font);
+  color: var(--danger);
 }
 
 .note {

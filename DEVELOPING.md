@@ -428,6 +428,13 @@ src/app/
     dragMath.ts           Pure drag geometry.
     dragController.ts     Pointer wiring and teardown.
     bootBridge.ts         The three bootloader globals.
+    cloud/                Optional Dropbox backup. Inert unless key + address match.
+      index.ts              Orchestration; the only part the UI touches.
+      config.ts             Registered redirect URIs and the address gate.
+      dropbox.ts            Six endpoints, raw fetch, no SDK.
+      pkce.ts               Verifier/challenge. Pure.
+      backup.ts             Cadence, naming, retention. Pure.
+      state.ts              Connection state; its own IndexedDB key.
   components/           Plain-JS Vue SFCs.
     DialogShell.vue       The scrim/card every modal is drawn in.
   ui/                   Ephemeral state, theme, routing, input modality.
@@ -587,6 +594,130 @@ touch the data** — it renders an explanation and offers to update. That is wha
 rolling back across a schema change non-destructive; never migrate downward, and never
 overwrite.
 
+## Cloud backup (Dropbox)
+
+Optional, opt-in, and **entirely absent from a build with no app key** — `isConfigured()`
+is false and the Settings card does not render. That is the default, so a fork ships with
+it dormant instead of linking its users against this project's Dropbox app.
+
+### Why Dropbox, and not Google
+
+Dropbox is the only mainstream provider that issues a **long-lived refresh token to a
+browser-only PKCE client**. Google issues none at all to browser clients and documents that
+you re-request a token "from a user-driven event such as a button press"; Microsoft caps
+SPA refresh tokens at 24 hours. For an app opened once a week, both mean an interactive
+sign-in almost every session, which is not a backup system. This choice is the whole reason
+the feature can be automatic without a backend, so do not "simplify" it by swapping
+providers.
+
+### Setup
+
+One app at <https://www.dropbox.com/developers/apps>, on any free account:
+
+| Field | Value |
+| --- | --- |
+| API | Scoped access |
+| Access type | **App folder** — confines the app to `Apps/<name>/` |
+| App name | `Shopping List by bp2008` |
+| Permissions | `files.content.write`, `files.content.read`, `account_info.read` |
+| Redirect URIs | `https://bp2008.github.io/ShoppingList/`, `http://localhost:5173/` |
+
+The name is global across Dropbox and the console has no rename — it is both the consent
+screen's wording and the folder name in the user's Dropbox, so treat it as permanent.
+
+Put the app key in the `DROPBOX_APP_KEY` constant at the top of `vite.config.js`, **and
+commit it**. It is a public client id, not a credential:
+
+- There is no app secret anywhere in this project. PKCE replaces it, which is the whole
+  reason a static host can do OAuth at all.
+- The key ships in readable JavaScript inside `docs/releases/<buildId>/assets/*.js`, and
+  `docs/` is tracked. It is in git either way.
+
+Keeping it in an ignored file would hide it from nobody while guaranteeing that a fresh
+clone or a second machine silently builds a bundle with cloud backup missing — no error, no
+card in Settings, and nothing to explain why.
+
+**What actually protects the key is the registered redirect URI list**, not its secrecy: an
+authorisation code can only be returned to a URI registered in the console. Guard that
+list.
+
+### The address gate
+
+`core/cloud/config.ts` holds `REDIRECT_URIS`, which **must match the console list exactly**.
+`availability()` returns one of three values, and the Settings card renders in all three:
+
+| Value | When | What the user sees |
+| --- | --- | --- |
+| `ready` | Key present, address registered | The working card |
+| `no-key` | Built with an empty key | Greyed card: "not configured in this release" |
+| `wrong-address` | Key present, address not registered | Greyed card naming the address |
+
+Anything other than `ready` makes the feature completely inert — `init()` restores nothing
+and uploads nothing, and `beginConnect()` returns without navigating.
+
+The point is the `wrong-address` case. Someone who forks this repo, or serves a build from
+anywhere else, inherits a working app key but *not* the registered addresses — so a sign-in
+would bounce them out to Dropbox and strand them on somebody else's error page. Checking up
+front turns that into a sentence they can act on. **Greyed out, never hidden**: an absent
+card reads as a missing feature, a greyed one reads as a feature that needs configuring.
+
+`matchRedirectUri` ignores the query and hash (the app is a hash router and is rarely at the
+bare directory), trims `index.html`, and enforces a trailing slash. It returns the string
+*from the list* rather than one rebuilt from `location`, because Dropbox compares
+`redirect_uri` byte for byte.
+
+Note that this also disables cloud backup on the staging server and on any dev server that
+did not get port 5173 — correctly, since neither could complete a sign-in.
+
+An empty constant compiles the feature out, which is the right default for a fork. A
+`DROPBOX_APP_KEY` in the environment or in a `.env` at the repo root overrides the
+constant, for testing against a throwaway app; the build prints a warning when it does, so
+a stray `.env` cannot quietly end up in a release.
+
+Development status is fine until the app links 50 users; production approval is a form
+after that.
+
+### What it does
+
+A snapshot is `buildExport(state.lists)` — byte-identical to a manual export — uploaded as
+`backup-YYYY-MM-DD-HHmm.json`, newest ten kept. It runs on start and whenever the app
+becomes visible, when the lists have changed AND six hours have passed. Restore downloads a
+file and hands it to `ImportDialog` through `ui.pendingImportText`, so merge/overwrite, the
+single `commit()`, and one-press undo are all the existing code.
+
+### Things that will bite you here
+
+**Hash `JSON.stringify(state.lists)`, never the export payload.** `buildExport` stamps
+`exportedAt`, so its hash differs on every call and the "nothing changed" check would never
+once be true — turning a six-hourly backup into one per visibility change, forever.
+
+**Nothing in `core/cloud/` may reject.** The shell's prelude captures `unhandledrejection`
+and reports it to the bootloader, so a cloud failure that escapes is capable of getting a
+healthy build rolled back. Every exported entry point resolves; failures land in
+`cloud.error`. Nothing here goes through `criticalSection()`.
+
+**`captureRedirect()` runs above `signalReady()`.** It is synchronous, does nothing that
+can fail, and swallows its own errors, because an exception there is inside the watchdog
+window. The network half deliberately waits until after mount.
+
+**`withToken()` waits on `ready`, and `init()` releases it before backing up.** The URL
+owns the UI, so a reload with the restore dialog open re-opens it long before IndexedDB has
+been read; without the gate it reports the user as signed out. Releasing `ready` after the
+first backup instead of before would deadlock that backup.
+
+**`prunable()` only ever deletes files matching our own naming pattern.** The app folder is
+visible to the user and they may put things in it. This is the one path in the feature that
+destroys data rather than merely failing to save it.
+
+### Untested on iOS
+
+The sign-in is a full-page redirect off-origin and back. An installed iOS web app may not
+survive that, and there is no iPhone available to test on. Mitigated by construction — no
+popup, no `window.opener`, verifier in localStorage — and the flow detects its own failure
+via `slp.cloud.started` and tells the user to use export instead. Do not reword that message
+to suggest retrying in Safari: on iOS a Home Screen web app has storage separate from
+Safari, so a connection made there would not carry over.
+
 ## Storage reference
 
 **localStorage** (bootloader only; synchronous by design, with an in-memory fallback):
@@ -619,3 +750,21 @@ deleting one from the worker would destroy the ability to roll back.
 | --- | --- |
 | `doc` | `{ schemaVersion, lists, settings }` — the user's data |
 | `backup:preMigration` | Last document written before a schema migration |
+| `cloud` | Dropbox connection: refresh token, account email, last backup time and hash |
+
+`cloud` is deliberately NOT inside `doc`. It is device-local rather than user data, it
+holds a credential that must never travel inside an export, and folding it into the
+document would change the shape `rescue.js` and `reset.html` read — for a field no list
+depends on. It carries no schema version and is simply ignored when unreadable.
+
+**localStorage** (cloud backup; only between starting a sign-in and returning from it):
+
+| Key | Meaning |
+| --- | --- |
+| `slp.cloud.verifier` | PKCE code verifier awaiting the redirect |
+| `slp.cloud.state` | Value the redirect must echo back |
+| `slp.cloud.started` | When the redirect began; detects a round trip that never returned |
+
+localStorage rather than sessionStorage on purpose — the flow leaves the origin entirely
+and comes back through a fresh page load, which sessionStorage is the more fragile of the
+two across, particularly in an installed PWA.

@@ -1,5 +1,6 @@
 <script>
 import DialogShell from './DialogShell.vue'
+import CloudRestoreDialog from './CloudRestoreDialog.vue'
 import ExportDialog from './ExportDialog.vue'
 import ImportDialog from './ImportDialog.vue'
 import TextImportDialog from './TextImportDialog.vue'
@@ -26,7 +27,7 @@ const SIMPLE = ['new-list', 'add-catalog', 'quantity', 'rename', 'delete-list', 
 
 export default {
   name: 'Dialogs',
-  components: { DialogShell, ExportDialog, ImportDialog, TextImportDialog },
+  components: { DialogShell, CloudRestoreDialog, ExportDialog, ImportDialog, TextImportDialog },
   props: {
     list: { type: Object, default: null },
     version: { type: String, default: '' },
@@ -151,6 +152,7 @@ export default {
 <template>
   <ExportDialog v-if="kind === 'export'" @close="$emit('close')" />
   <ImportDialog v-else-if="kind === 'import'" @close="$emit('close')" />
+  <CloudRestoreDialog v-else-if="kind === 'cloud-restore'" @close="$emit('close')" />
   <TextImportDialog
     v-else-if="kind === 'import-text' && list"
     :list="list"
@@ -185,7 +187,8 @@ export default {
 
     <p v-else-if="kind === 'about'" class="body">
       Shopping List v{{ version }}<br />
-      Offline-first. Everything is stored on this device — no account, no server.
+      Offline-first. Your lists are stored on this device, and go nowhere else unless you
+      turn on cloud backup.
     </p>
 
     <template #actions>

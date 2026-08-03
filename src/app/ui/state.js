@@ -27,11 +27,24 @@ export const ui = reactive({
 
   /**
    * null | 'new-list' | 'add-catalog' | 'quantity' | 'rename' | 'delete-list' | 'export' |
-   * 'import' | 'import-text' | 'about'
+   * 'import' | 'import-text' | 'cloud-restore' | 'about'
    */
   dialog: null,
   /** Payload for the open dialog (e.g. the cid whose quantity is being set). */
   dialogArg: null,
+
+  /**
+   * A downloaded cloud snapshot on its way into the import dialog.
+   *
+   * The hand-off between two dialogs, and the reason restoring from Dropbox needs no
+   * import logic of its own: the restore dialog puts the JSON here and swaps itself for
+   * the ordinary import dialog, which consumes it on mount and behaves exactly as if the
+   * user had pasted it. Merge versus overwrite, the single commit, and one-press undo all
+   * come along for free.
+   *
+   * Too large and too transient for a URL, hence here rather than in `dialogArg`.
+   */
+  pendingImportText: '',
 
   /** Catalog-delete mode: the only place checkboxes appear in the app. */
   selecting: false,

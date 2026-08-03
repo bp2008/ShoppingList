@@ -41,11 +41,10 @@ handled carefully with the ability to roll back if you get a bad update.
 
 ## Your data
 
-Everything is stored on your device. There is no account, no server, and nothing is sent
-anywhere.
+Everything is stored on your device. There is no server of ours anywhere in the picture,
+and by default nothing leaves the phone at all.
 
-That also means there is no automatic backup, so **Settings → Your data** has import and
-export:
+**Settings → Your data** has import and export:
 
 - **Export lists…** — tick the lists you want, then copy them to the clipboard or save
   them as a JSON file.
@@ -63,11 +62,39 @@ putting a shopping list on the clipboard in a form you can paste into a message.
 Uninstalling the app, or clearing your browser's site data, deletes your lists. Export
 first if you care about them.
 
+## Cloud backup
+
+Optional, off until you turn it on, and Dropbox only. **Settings → Cloud backup → Connect
+Dropbox** signs you in once; after that the app quietly saves a snapshot to a folder of its
+own — `Apps/Shopping List by bp2008/` — whenever your lists have changed and it has been a
+few hours since the last one. The last ten are kept.
+
+It is a backup, not sync. Nothing is ever pulled down on its own: **Restore…** lists your
+snapshots, and picking one hands it to the same import screen a pasted file would go
+through, so you still choose which lists to bring in and whether to merge or overwrite —
+and it is still one undo away.
+
+The snapshots are ordinary export files. You can open one in your Dropbox and read it, or
+paste it into **Import lists…** by hand if you would rather not use the restore screen.
+Disconnecting forgets the account on this device and leaves every snapshot where it is.
+
+The app can only see its own folder, never the rest of your Dropbox.
+
+If you are running your own copy of this project rather than the link at the top, cloud
+backup will show greyed out and say so. Dropbox only accepts sign-in from addresses
+registered against the app, so a copy served from anywhere else cannot use it — you would
+need your own Dropbox app and your own address in `REDIRECT_URIS`. Export and import work
+normally either way.
+
 ## Known feature gaps
 
 - **Accessibility.** Dragging is currently the only way to move items, so the app cannot be
   used with a keyboard or a screen reader. This is the biggest gap and it is understood.
-- **No sync.** One device at a time, unless you move JSON around by hand.
+- **No sync.** Cloud backup copies this device's lists *up*; it never merges two devices.
+  Moving to a new phone is a restore, done once, by hand.
+- **Cloud backup is untested on iPhone.** The sign-in leaves the app and comes back, which
+  an installed iOS web app may not survive. If it fails there the app says so and points
+  you at export; everything else works as normal.
 
 ## Building it yourself
 
