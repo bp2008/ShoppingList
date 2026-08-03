@@ -199,6 +199,10 @@ export class DragController {
     // while a drag is in flight. Removed by abort() and by nothing else.
     document.addEventListener('touchmove', this.#onTouchMove, { passive: false, signal })
 
+    // Belt and braces with the app-wide `user-select: none` in tokens.css, which already
+    // covers everything a drag can pass over. Kept because this one is scoped to the drag:
+    // if selection is ever allowed back somewhere, that decision should not silently hand
+    // the browser a highlight to make in the middle of a gesture.
     document.body.style.userSelect = 'none'
 
     navigator.vibrate?.(VIBRATE_MS)

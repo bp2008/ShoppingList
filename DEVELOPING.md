@@ -193,6 +193,16 @@ that, the hover rule outranks the press rule and a mouse press shows nothing.
 The rescue screen cannot use any of this — it deletes every stylesheet in the document
 before it renders — so `shell/rescue.js` carries a small inline-style equivalent.
 
+**Text selection is off app-wide**, on `html` in `tokens.css`, along with
+`-webkit-touch-callout`. Selectable interface text is one of the things that gives a web
+app away, and on a phone it actively fights the gestures: a long press on a row is this
+app's drag, and the browser answers the same press with a highlight and a Copy/Share bar.
+`input` and `textarea` opt back in immediately below, and that rule is **load-bearing** —
+`user-select` inherits, and an inherited `none` stops WebKit placing the caret when you tap
+into a field. Anything that should be selectable in future belongs in that second selector.
+The rescue and reset screens are unaffected: neither loads `tokens.css`, and both put
+recovered data in a `textarea` precisely so it can be selected and copied.
+
 ### Icons and graphics
 
 **SVG is the format for icons and simple graphics here.** It is crisp at any pixel ratio,

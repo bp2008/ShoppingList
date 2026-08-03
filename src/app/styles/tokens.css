@@ -90,6 +90,33 @@ button {
 }
 
 /*
+ * Text selection is OFF everywhere except in fields.
+ *
+ * This is a web page pretending to be an app, and selection is one of the tells. On a
+ * phone it is worse than a tell: a long press on a row is this app's drag gesture, and the
+ * browser answers the same press by highlighting a word and raising a Copy/Share bar over
+ * the list being dragged. A double tap on a label does it too, on its way to a zoom the
+ * app does not have. `-webkit-touch-callout` is the same interruption arriving by a
+ * different route -- iOS's long-press sheet on links -- so it goes with them.
+ *
+ * The opt-back-in is not politeness, it is required: `user-select` inherits, and an
+ * inherited `none` stops WebKit placing the caret when you tap inside a text field. Every
+ * field in the app -- search, the dialog inputs, the two import boxes -- is covered here,
+ * so no component has to remember.
+ */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
  * Interaction feedback.
  *
  * THREE STATES, THREE MECHANISMS, ON PURPOSE — this is a touchscreen app, and the naive

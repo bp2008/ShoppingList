@@ -5,6 +5,16 @@ import { absoluteTime, relativeTime } from '../core/format'
 import { UNDO_LIMIT } from '../core/types'
 import { openLayer } from '../ui/navigation'
 
+/**
+ * How often the "last backup" clock is re-read.
+ *
+ * This is the screen a user is sitting on immediately after pressing "Back up now", so its
+ * relative time is the one most likely to be watched while it changes. `relativeTime`
+ * steps at 90 seconds and then once a minute, so the tick only has to be fine enough that
+ * the line is never visibly stale; five seconds is well inside the time it takes to notice.
+ */
+const CLOCK_TICK_MS = 5000
+
 export default {
   name: 'SettingsSheet',
   emits: ['close'],
@@ -18,6 +28,11 @@ export default {
       // guessing at a control that quietly does nothing.
       cloudState: cloudApi.availability(),
       cloudAddress: cloudApi.currentAddress(),
+      // The clock the status line reads. Held in data rather than called during render:
+      // a computed that reaches for Date.now() is not reactive, so it would render once
+      // and then say "just now" for as long as the sheet stayed open.
+      now: Date.now(),
+      timer: null,
     }
   },
   computed: {
@@ -41,7 +56,7 @@ export default {
     backupStatus() {
       if (this.cloud.busy) return 'Working…'
       if (!this.cloud.lastBackupAt) return 'No backup yet'
-      const ago = relativeTime(this.cloud.lastBackupAt).toLowerCase()
+      const ago = relativeTime(this.cloud.lastBackupAt, this.now).toLowerCase()
       return `Last backup ${ago} · ${absoluteTime(this.cloud.lastBackupAt)}`
     },
     // Where cloud backup cannot run, the footer must not promise it.
@@ -62,6 +77,14 @@ export default {
       }
       return `Dropbox backup is not configured for this address. Sign-in only works from the addresses registered with Dropbox, and ${this.cloudAddress} is not one of them.`
     },
+  },
+  mounted() {
+    this.timer = setInterval(() => {
+      this.now = Date.now()
+    }, CLOCK_TICK_MS)
+  },
+  beforeUnmount() {
+    clearInterval(this.timer)
   },
   methods: {
     setTheme: store.setTheme,
