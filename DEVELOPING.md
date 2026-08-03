@@ -721,8 +721,20 @@ local record of it did not. Names written before the seconds existed are still m
 `disconnect()` revokes the token at Dropbox before forgetting it locally. The credential on
 this device is only half the connection; the other half is a grant on the account, and
 leaving it standing means the app is still listed under the user's connected apps and the
-next sign-in is waved through with no Dropbox page shown at all. The revoke is best effort
-and the local half happens either way, so disconnecting offline still disconnects.
+next sign-in is waved through with no Dropbox page shown at all. `/2/auth/token/revoke`
+takes the access token and, per Dropbox, revokes "the corresponding refresh token, if any"
+with it.
+
+The local half happens even when the revoke fails, and the failure is then **reported** —
+there is no way for the user to discover it otherwise, since the app has vanished from the
+card and the grant is not visible from inside the app. An `auth` failure is the exception
+and counts as success: a credential that cannot be refreshed has already been revoked at
+the other end.
+
+**Do not use the App Console's "Development users" count to check any of this.** It counts
+users the app has ever linked and does not go down — "simply unlinking all of your users
+will not unfreeze your app", in Dropbox's words. The live authorisation shows up under
+Connected apps in the user's own account settings.
 
 For the same reason `authorizeUrl` sends `force_reapprove=true`: the approval screen is
 where the user sees which account they are about to link, and it is the only opportunity to

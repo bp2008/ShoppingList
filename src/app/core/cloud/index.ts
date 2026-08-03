@@ -49,6 +49,19 @@ const LOST_ROUND_TRIP =
   "Sign-in didn't finish. Cloud backup may not work in the installed app on this device " +
   '-- use Export lists to save a copy instead.'
 
+/**
+ * Shown when the local half of a disconnect succeeded and the remote half did not.
+ *
+ * Says what is true rather than what was intended: this device has stopped, and the
+ * account has not been told. The alternative is a silent half-disconnect that looks
+ * exactly like a whole one, which is worse than an error -- it is the user believing they
+ * revoked access when they still have an app authorised that they can no longer see.
+ */
+const REVOKE_FAILED =
+  'Disconnected on this device, but Dropbox could not be reached to revoke access. Remove ' +
+  '"Shopping List by bp2008" under Connected apps in your Dropbox account settings to ' +
+  'finish, or connect and disconnect from dropbox here again later.'
+
 /** Captured synchronously at boot by `captureRedirect`, consumed by `init`. */
 let pending: { code: string; state: string } | null = null
 
@@ -405,26 +418,36 @@ export function fetchBackup(path: string): Promise<string> {
  * showing a Dropbox page. Revoking is what makes "Disconnect" mean what it says, and what
  * makes connecting a *different* account possible afterwards.
  *
- * BEST EFFORT, AND THE LOCAL HALF HAPPENS EITHER WAY. A user disconnecting on a plane
- * still gets disconnected; the stale grant is then cleared the next time they connect,
- * because `authorizeUrl` asks for approval unconditionally.
+ * THE LOCAL HALF HAPPENS EITHER WAY, and a remote half that did not happen is REPORTED. A
+ * user disconnecting on a plane still gets disconnected, and is told that the account has
+ * not been told, because there is no way for them to find that out afterwards -- the app
+ * is gone from this screen and the grant is invisible from here.
  *
  * Backups are deliberately left alone. Revoking removes this app's access, not the user's
  * own files.
  */
 export async function disconnect(): Promise<void> {
   cloud.busy = true
+  let revoked = false
+
   try {
     await withToken((token) => api.revokeToken(token))
-  } catch {
-    /* offline, or already revoked at the other end */
+    revoked = true
+  } catch (err) {
+    // A credential that cannot even be refreshed has already been revoked at the other
+    // end -- by the user from their account settings, or by a disconnect that ran on
+    // another device. There is nothing left to hand back, so that is a success.
+    revoked = err instanceof CloudError && err.kind === 'auth'
   } finally {
     cloud.busy = false
   }
 
   accessToken = ''
   accessExpiry = 0
+  // Clears cloud.error, which is why the warning goes on afterwards rather than before.
   await connection.disconnect()
+
+  if (!revoked) cloud.error = REVOKE_FAILED
 }
 
 /* ------------------------------------------------------------------------------ init */
