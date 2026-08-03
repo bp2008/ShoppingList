@@ -25,6 +25,25 @@ export function relativeTime(modified: number, now: number = Date.now()): string
   return 'Over a year ago'
 }
 
+/**
+ * `2026-08-02 14:31`, in local time.
+ *
+ * The companion to `relativeTime`, not a replacement for it: "5m ago" is what you want to
+ * know about a backup nine times out of ten, and the tenth is when you need to tell two
+ * of them apart or match one against a file in Dropbox.
+ *
+ * Same fields, same order, same local clock as `cloud/backup.ts:backupFileName`, so a
+ * status line and a file name can be compared at a glance. Hand-rolled rather than
+ * `toLocaleString` for exactly that reason -- the format has to be pinned to the file
+ * naming, not to whatever the device's locale would produce.
+ */
+export function absoluteTime(at: number): string {
+  const d = new Date(at)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return `${date} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 type Stop = readonly [days: number, rgb: readonly [number, number, number]]
 
 /**

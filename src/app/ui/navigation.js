@@ -95,9 +95,21 @@ function syncUi(route) {
  * for it rather than for the current tick.
  */
 
-/** Open a list. A new entry, so Back returns to the home screen. */
+/**
+ * Open a list. A new entry, so Back returns to the home screen.
+ *
+ * AN ACTIVE SEARCH TRAVELS WITH IT. Home search matches a list's name or anything in its
+ * catalog, so a tile shown while searching is usually the answer to "which list has this
+ * item in it" — and dropping the query on the way in made the user type it a second time
+ * to find out where in the list it was. Carrying the layer keeps the text too, because
+ * `syncUi` only clears that when the search layer closes.
+ *
+ * Only `search` is carried. The other layers cover the screen, so no tile can be tapped
+ * while one of them is open.
+ */
 export function openList(id) {
-  return router.push({ name: 'list', params: { id } })
+  const searching = 'search' in router.currentRoute.value.query
+  return router.push({ name: 'list', params: { id }, query: searching ? { search: null } : {} })
 }
 
 /** Replace the current entry with a list screen, e.g. the dialog that just created it. */
@@ -138,18 +150,25 @@ export function replaceLayer(patch) {
  * Close the topmost layer, or leave the list screen when none is open.
  *
  * Normally this is just Back, so that in-app close and hardware Back are the same action
- * and the forward entry stays available. When there is nothing of ours behind us — a cold
- * launch straight into a deep link — Back would leave the site entirely, so the entry is
- * rewritten instead.
+ * and the forward entry stays available. That equivalence holds only while the entry
+ * behind us IS this entry minus the layer being closed, which is true of every layer
+ * opened with `openLayer` and false in two cases: a cold launch straight into a deep link,
+ * where Back would leave the site entirely, and a layer carried across a screen change by
+ * `openList`, where Back would leave the list as well as the search. Both rewrite the
+ * entry instead.
  */
 export function closeLayer() {
-  if (canGoBack()) {
-    router.back()
+  const query = stripTopLayer(router.currentRoute.value.query)
+
+  // No layer open: this is "leave the list screen", which is the whole of what Back does.
+  if (query === null) {
+    if (canGoBack()) router.back()
+    else goHome()
     return
   }
-  const query = stripTopLayer(router.currentRoute.value.query)
-  if (query) router.replace({ query })
-  else goHome()
+
+  if (backIs(query)) router.back()
+  else router.replace({ query })
 }
 
 /**
@@ -161,6 +180,17 @@ export function closeLayer() {
  */
 function canGoBack() {
   return typeof window.history.state?.back === 'string'
+}
+
+/**
+ * True when the previous entry is this screen with exactly `query` on it.
+ *
+ * The router resolves the comparison string, so both sides come out of the same
+ * serializer and a raw string comparison is safe. A false answer only ever costs the
+ * forward entry — the close itself still happens, by rewriting instead of stepping back.
+ */
+function backIs(query) {
+  return canGoBack() && window.history.state.back === router.resolve({ query }).fullPath
 }
 
 /** The query with the topmost layer removed, or null when no layer is open. */

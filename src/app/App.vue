@@ -251,7 +251,14 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  touch-action: manipulation;
+  /*
+   * Panning only: `manipulation` explicitly ENABLES pinch zoom, and this app has nothing
+   * to zoom into -- the root does not scroll, so a pinch only offsets the interface. This
+   * is the half of "no pinch zoom" that does not depend on the viewport meta tag, which
+   * Safari ignores. Descendants still narrow it further (.grip is none, .row-text pan-y);
+   * they cannot widen it, which is the point.
+   */
+  touch-action: pan-x pan-y;
 }
 
 .topbar-fallback {

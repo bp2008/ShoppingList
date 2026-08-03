@@ -2,7 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!--
+      `maximum-scale=1, user-scalable=no` disables pinch zoom. This is a two-column app on
+      a fixed, non-scrolling root: a pinch here does not reveal anything, it just leaves
+      the interface offset and the columns half off screen, and a stray second finger
+      during a drag is enough to trigger it. The app root carries `touch-action: pan-x
+      pan-y` for the same reason -- Safari ignores `user-scalable`.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#ffffff" />
     <meta name="description" content="Offline shopping list." />
     <title>Shopping List</title>

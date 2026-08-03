@@ -1,7 +1,7 @@
 <script>
 import * as store from '../core/store'
 import * as cloudApi from '../core/cloud'
-import { relativeTime } from '../core/format'
+import { absoluteTime, relativeTime } from '../core/format'
 import { UNDO_LIMIT } from '../core/types'
 import { openLayer } from '../ui/navigation'
 
@@ -29,10 +29,20 @@ export default {
         store.setRowHeight(Number(v))
       },
     },
+    /**
+     * Both clocks, because they answer different questions.
+     *
+     * "5m ago" is the one that matters day to day and the only one you can read without
+     * doing arithmetic. It is also useless for the thing a backup status is actually
+     * consulted for -- deciding whether the snapshot in Dropbox predates the mistake you
+     * are trying to undo -- and "yesterday" covers a 24-hour window. The exact stamp is
+     * the same format as the file names in the restore list, so the two can be matched up.
+     */
     backupStatus() {
       if (this.cloud.busy) return 'Working…'
       if (!this.cloud.lastBackupAt) return 'No backup yet'
-      return `Last backup ${relativeTime(this.cloud.lastBackupAt).toLowerCase()}`
+      const ago = relativeTime(this.cloud.lastBackupAt).toLowerCase()
+      return `Last backup ${ago} · ${absoluteTime(this.cloud.lastBackupAt)}`
     },
     // Where cloud backup cannot run, the footer must not promise it.
     dataNote() {

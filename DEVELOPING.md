@@ -135,6 +135,18 @@ screen — routing them would unmount the list underneath and lose its scroll po
 They stack in the URL exactly as they stack on screen, so `?search&menu` closes back to
 `?search`.
 
+**Search is the one layer that survives a screen change.** Opening a list while searching
+carries `?search` onto the list route, because a home-screen match is usually a catalog
+match — the tile answers *which* list has the item, and the list screen answers *where* in
+it — and dropping the query in between made the user type it again to find out. Everything
+else is closed by the time a tile can be tapped, so nothing else is carried.
+
+That is also the one case where closing a layer is not `back()`: the entry behind a
+carried layer is the *home* screen, so stepping back would leave the list as well as the
+search. `closeLayer()` steps back only when the previous entry is this entry minus the
+layer being closed, and rewrites the current entry when it is not — which covers a cold
+deep link into `#/list/<id>?search` for the same reason.
+
 Dialog kinds are an allow-list in `ui/navigation.js`, and the ones that act on the open
 list (`add-catalog`, `quantity`, `rename`, `delete-list`, `import-text`) are dropped when
 the URL names them on the home screen — a deep link cannot mount a dialog against a null
@@ -493,7 +505,10 @@ drag-auto-scroll keeps working, because that scrolls programmatically. This exac
 was observed in the design prototype.
 
 **`touch-action` is static CSS and must never be set from JavaScript.** `.grip` is `none`,
-`.row-text` is `pan-y`, always. What is never dynamic cannot get stuck.
+`.row-text` is `pan-y`, the app root is `pan-x pan-y`, always. What is never dynamic cannot
+get stuck. The root value is also half of "no pinch zoom" — note that `manipulation`, which
+it replaced, *enables* pinch zoom; the other half is `user-scalable=no` in the shell's
+viewport meta, which Safari ignores and this does not.
 
 **Never judge a hidden document.** `requestAnimationFrame` does not fire while
 `document.hidden`, so a PWA launched and immediately backgrounded never signals readiness.

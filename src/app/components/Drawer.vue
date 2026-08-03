@@ -110,7 +110,7 @@ export default {
         </template>
       </nav>
 
-      <footer class="foot">Shopping List · v{{ version }}</footer>
+      <footer class="foot">Shopping List by bp2008 · v{{ version }}</footer>
     </aside>
   </div>
 </template>

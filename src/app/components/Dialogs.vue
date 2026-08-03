@@ -185,11 +185,27 @@ export default {
       The list and its catalog are removed. You can undo this.
     </p>
 
-    <p v-else-if="kind === 'about'" class="body">
-      Shopping List v{{ version }}<br />
-      Offline-first. Your lists are stored on this device, and go nowhere else unless you
-      turn on cloud backup.
-    </p>
+    <template v-else-if="kind === 'about'">
+      <p class="body">
+        Shopping List v{{ version }}<br />
+        Offline-first. Your lists are stored on this device, and go nowhere else unless you
+        turn on cloud backup.
+      </p>
+      <!--
+        `target="_blank"` is what hands this to the real browser. An installed app has no
+        address bar and no tabs, so following a link in place would strand the user on a
+        page they cannot leave except by Back, with nothing on screen saying where they
+        are. `rel` because a new context must never get a handle on this one.
+      -->
+      <a
+        class="repo tap"
+        href="https://github.com/bp2008/ShoppingList"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        github.com/bp2008/ShoppingList
+      </a>
+    </template>
 
     <template #actions>
       <button v-if="kind === 'about'" class="link tap" type="button" @click="openTroubleshooting">
@@ -226,6 +242,24 @@ export default {
   height: 18px;
   -webkit-appearance: auto;
   accent-color: var(--accent);
+}
+
+/*
+ * A row of its own rather than a run of text: it is the one tap target in this dialog, and
+ * the negative margin pulls its label back into line with the paragraph above so that the
+ * padding buying it a finger-sized height does not show as an indent.
+ */
+.repo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin: 0 0 0 -8px;
+  padding: 0 8px;
+  font: 500 12.5px var(--font);
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 7px;
+  overflow-wrap: anywhere;
 }
 
 .stepper {

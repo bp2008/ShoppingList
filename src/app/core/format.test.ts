@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { listAsText, previewLine, relativeTime, spineColor } from './format'
+import { absoluteTime, listAsText, previewLine, relativeTime, spineColor } from './format'
+import { backupFileName } from './cloud/backup'
 
 const NOW = Date.UTC(2026, 7, 2, 12, 0, 0)
 const ago = (ms: number) => NOW - ms
@@ -27,6 +28,25 @@ describe('relativeTime', () => {
 
   it('does not produce negative ages for clock skew', () => {
     expect(relativeTime(NOW + 10 * DAY, NOW)).toBe('Just now')
+  })
+})
+
+describe('absoluteTime', () => {
+  // Local-time constructor on both sides, so the expectation holds in any time zone --
+  // which is also the property being asserted: the clock shown is the device's own.
+  it('pads every field and reads biggest-unit-first', () => {
+    expect(absoluteTime(new Date(2026, 7, 2, 14, 31).getTime())).toBe('2026-08-02 14:31')
+    expect(absoluteTime(new Date(2026, 0, 9, 5, 4).getTime())).toBe('2026-01-09 05:04')
+    expect(absoluteTime(new Date(2026, 11, 31, 0, 0).getTime())).toBe('2026-12-31 00:00')
+  })
+
+  // Shown next to a list of backup file names, so the two carry the same fields off the
+  // same clock. A status line that disagreed with the file it names would be worse than
+  // no absolute time at all.
+  it('carries the same fields as a backup file name', () => {
+    const at = new Date(2026, 7, 2, 14, 31, 59)
+    expect(absoluteTime(at.getTime())).toBe('2026-08-02 14:31')
+    expect(backupFileName(at)).toBe('backup-2026-08-02-1431.json')
   })
 })
 
